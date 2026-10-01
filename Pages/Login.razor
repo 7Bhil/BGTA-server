@@ -157,7 +157,7 @@
 
         <div class="text-center mt-10">
             <MudText Typo="Typo.caption" Style="color: #64748b;">
-                Â© 2026 République du Bénin | Sécurisé par BGTA-Auth
+                &copy; 2026 République du Bénin | Sécurisé par BGTA-Auth
             </MudText>
         </div>
     </div>
@@ -197,13 +197,15 @@
         public string LibProfil { get; set; } = "";
     }
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         var uri = Navigation.Uri;
         if (uri.Contains("expired=true", StringComparison.OrdinalIgnoreCase))
         {
             IsSessionExpired = true;
         }
+
+        await LoadProfilsAsync();
     }
 
     private void ClearMessages()
@@ -216,22 +218,28 @@
     {
         var currentUsername = loginModel.Username?.Trim() ?? "";
 
-        if (string.IsNullOrWhiteSpace(currentUsername) || currentUsername == _lastUsernameChecked)
+        if (string.IsNullOrWhiteSpace(currentUsername))
+            return;
+
+        await LoadProfilsAsync();
+    }
+
+    private async Task LoadProfilsAsync()
+    {
+        if (AvailableProfils.Any() && !string.IsNullOrEmpty(_lastUsernameChecked))
             return;
 
         IsLoading = true;
 
         try
         {
-            // Appel de la procedure stockee pour recuperer les profils disponibles
             var result = await BapiService.ExecuteProcedureAsync(
                 1,
-                "PS20038",
+                "20038",
                 Array.Empty<object?>());
 
             if (result != null && result.Length > 0)
             {
-                // On peuple la liste des profils
                 AvailableProfils = result
                     .Select(r => new ProfilItem
                     {
@@ -246,23 +254,19 @@
                     .Where(x => x.IdProfil > 0)
                     .ToList();
 
-                if (AvailableProfils.Any())
+                if (AvailableProfils.Any() && loginModel.SelectedProfilId == 0)
                 {
                     loginModel.SelectedProfilId = AvailableProfils[0].IdProfil;
-                    _lastUsernameChecked = currentUsername;
                 }
 
+                _lastUsernameChecked = loginModel.Username ?? "loaded";
                 ClearMessages();
             }
         }
         catch (Exception ex)
         {
-            Logger.LogError(
-                ex,
-                "Erreur lors de la récupération des profils pour {User}",
-                currentUsername);
-
-            ErrorMessage = "Impossible de valider l'identifiant.";
+            Logger.LogError(ex, "Erreur lors du chargement des profils");
+            ErrorMessage = "Impossible de charger la liste des profils.";
         }
         finally
         {

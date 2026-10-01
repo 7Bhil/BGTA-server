@@ -1,4 +1,4 @@
-﻿using System.Net.Http.Json;
+using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -24,7 +24,7 @@ public class BapiService
         // On stocke l'ID par défaut (SQL Server généralement) défini dans appsettings
         _defaultDatabaseTypeId = bapiSettings.CurrentValue.DatabaseTypeId;
         
-        var apiKey = configuration["BGTA_BAPI_API_KEY"];
+        var apiKey = configuration["BGTA_BAPI_API_KEY"] ?? configuration["BapiSettings:ApiKey"];
         
         if (!string.IsNullOrEmpty(apiKey))
         {
