@@ -1,0 +1,26 @@
+## [Visual Studio / .NET / C#]
+# Build results
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio files
+.vs/
+*.user
+*.userosscache
+*.sln.docstates
+*.suo
+
+# User secrets and local settings
+secrets.json
+*.local.json
+
+# Environment and sensitive files
+*.env
+*.env.*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
