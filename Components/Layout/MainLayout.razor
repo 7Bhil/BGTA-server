@@ -1,0 +1,152 @@
+﻿@inherits LayoutComponentBase
+@using MudBlazor
+@using Microsoft.AspNetCore.Components.Authorization
+@using BGTA.Server.Models
+@using BGTA.Server.Services
+@inject NavigationService NavService
+@inject NavigationState NavState
+@implements IDisposable
+
+@* 1. INITIALISATION DES SERVICES MUDUI (En haut) *@
+<MudThemeProvider />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout> @* Encapsulation recommandée pour la gestion des Popovers *@
+    <div class="app-container">
+        
+        @* 1. BARRE LATERALE FIXE *@
+        <aside class="sidebar">
+            <SimpleNavMenu />
+        </aside>
+
+        @* 2. ZONE DE CONTENU PRINCIPALE *@
+        <main class="main-container">
+            @* HEADER / TOP-ROW *@
+            <header class="header">
+                <div class="d-flex align-items-center justify-content-between w-100 px-4">
+                    <div>
+                        <AuthorizeView>
+                            <Authorized Context="authContext">
+                                <span class="me-3 text-dark fw-bold">
+                                    ðŸ‘‹ @(authContext.User.FindFirst("NomPrenom")?.Value ?? authContext.User.Identity?.Name) 
+                                    <small class="text-muted ms-2">(@(authContext.User.FindFirst("ProfilLibelle")?.Value ?? "Utilisateur"))</small>
+                                </span>
+                            </Authorized>
+                        </AuthorizeView>
+                    </div>
+                    <div>
+                        <AuthorizeView>
+                            <Authorized>
+                                <a href="/Logout" class="btn btn-sm btn-outline-primary fw-bold">
+                                    <i class="fas fa-sign-out-alt me-1"></i>Déconnexion
+                                </a>
+                            </Authorized>
+                        </AuthorizeView>
+                    </div>
+                </div>
+            </header>
+
+            @* CONTENU DYNAMIQUE *@
+            <div class="content-wrapper">
+                <article class="content-body">
+                    @if (activeComponent != null)
+                    {
+                        @* Note: On passe les paramètres si nécessaire, sinon le type suffit *@
+                        <DynamicComponent Type="@activeComponent" />
+                    }
+                    else
+                    {
+                        @Body
+                    }
+                </article>
+            </div>
+        </main>
+    </div>
+</MudLayout>
+
+<style>
+    /* Vos styles restent identiques, j'ajoute juste une sécurité pour MudBlazor */
+    .app-container {
+        display: flex;
+        height: 100vh;
+        overflow: hidden;
+        background-color: #f4f7f9;
+    }
+
+    .sidebar {
+        width: 250px;
+        background: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%);
+        color: white;
+        flex-shrink: 0;
+        z-index: 100; /* Augmenté pour MudBlazor */
+    }
+
+    .main-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+
+    .header {
+        height: 4rem;
+        background-color: white;
+        border-bottom: 1px solid #e0e0e0;
+        display: flex;
+        align-items: center;
+        flex-shrink: 0;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    }
+
+    .content-wrapper {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1.5rem;
+    }
+
+    .content-body {
+        max-width: 1600px;
+        margin: 0 auto;
+        width: 100%;
+    }
+
+    @@media (max-width: 960px) {
+        .app-container { flex-direction: column; overflow: auto; }
+        .sidebar { width: 100%; height: auto; }
+        .main-container { height: auto; }
+    }
+</style>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState> context { get; set; } = default!;
+
+    private Type? activeComponent;
+
+    protected override void OnInitialized()
+    {
+        NavState.OnChange += HandleNavigation;
+        // Optionnel : Initialiser le composant actif si NavState a déjÃ  une valeur
+        HandleNavigation();
+    }
+
+    private void HandleNavigation()
+    {
+        if (NavState.CurrentFormName != null)
+        {
+            var nextComponent = NavService.GetPageType(NavState.CurrentFormName);
+            if (activeComponent != nextComponent)
+            {
+                activeComponent = nextComponent;
+                InvokeAsync(StateHasChanged); // Utilisation de InvokeAsync pour la sécurité des threads
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        NavState.OnChange -= HandleNavigation;
+    }
+}

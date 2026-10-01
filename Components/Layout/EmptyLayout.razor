@@ -1,0 +1,15 @@
+@inherits LayoutComponentBase
+
+@using MudBlazor
+
+@* Indispensable : Ces fournisseurs gèrent l'affichage des composants MudBlazor *@
+<MudThemeProvider />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudMainContent>
+        @Body
+    </MudMainContent>
+</MudLayout>

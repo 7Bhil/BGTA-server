@@ -1,0 +1,118 @@
+﻿@using MudBlazor
+@using BGTA.Server.Services
+@using BGTA.Server.Models
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Collections.Concurrent  <!-- âœ… AJOUTÉ : résout l'erreur CS0246 -->
+@inject NavigationManager Navigation
+@inject IMenuService MenuService
+@inject AuthenticationStateProvider AuthStateProvider
+
+<MudNavMenu>
+    @if (menuItems == null)
+    {
+        <div class="text-center py-4">
+            <MudProgressCircular Size="Size.Large" Indeterminate="true" Color="Color.Primary" />
+        </div>
+    }
+    else
+    {
+        @foreach (var item in menuItems.Where(m => m.ParentId == null).OrderBy(m => m.Order))
+        {
+            @if (item.Children?.Count > 0)
+            {
+                @* Suppression de Title="@item.Text" car il est géré dans TitleContent *@
+                <MudNavGroup Expanded="false">
+                    <TitleContent>
+                        <div class="d-flex align-center">
+                            @if (!string.IsNullOrEmpty(item.Icon))
+                            {
+                                @* Remplacement de IconContent par TitleContent *@
+                                <img src="images/menus/@item.Icon" 
+                                     style="width:20px; height:20px; margin-right:12px; filter: brightness(0) invert(1);" />
+                            }
+                            <MudText>@item.Text</MudText>
+                        </div>
+                    </TitleContent>
+                    <ChildContent>
+                        @foreach (var child in item.Children.OrderBy(c => c.Order))
+                        {
+                            <MudNavLink Href="@child.Url">
+                                <div class="d-flex align-center">
+                                    @if (!string.IsNullOrEmpty(child.Icon))
+                                    {
+                                        <img src="/images/menus/@child.Icon" 
+                                             style="width:18px; height:18px; margin-right:12px; filter: brightness(0) invert(1);" />
+                                    }
+                                    @child.Text
+                                </div>
+                            </MudNavLink>
+                        }
+                    </ChildContent>
+                </MudNavGroup>
+            }
+            else
+            {
+                <MudNavLink Href="@item.Url">
+                    <div class="d-flex align-center">
+                        @if (!string.IsNullOrEmpty(item.Icon))
+                        {
+                            <img src="images/menus/@item.Icon" 
+                                 style="width:20px; height:20px; margin-right:12px; filter: brightness(0) invert(1);" />
+                        }
+                        @item.Text
+                    </div>
+                </MudNavLink>
+            }
+        }
+    }
+</MudNavMenu>
+
+@code {
+    // ðŸ”‘ CHAMP STATIQUE PERSISTANT (survit aux recréations du composant)
+    private static readonly ConcurrentDictionary<int, List<MenuItem>> _componentCache = new();
+    
+    private List<MenuItem>? menuItems;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var profilIdClaim = authState.User.FindFirst("ProfilId")?.Value;
+        
+        if (int.TryParse(profilIdClaim, out var profilId) && profilId > 0)
+        {
+            // ðŸ”‘ LECTURE DU CACHE COMPOSANT
+            if (_componentCache.TryGetValue(profilId, out var cachedMenu))
+            {
+                menuItems = cachedMenu;
+                return;
+            }
+
+            // ðŸ”‘ APPEL AU SERVICE
+            menuItems = await MenuService.GetMenuItemsAsync();
+            
+            // ðŸ”‘ STOCKAGE DANS LE CACHE COMPOSANT
+            if (menuItems != null)
+            {
+                _componentCache.TryAdd(profilId, menuItems);
+            }
+        }
+    }
+
+    private string GetIcon(object? icon)
+    {
+        var iconStr = icon?.ToString();
+        return iconStr switch
+        {
+            "fas fa-home" or "home.png" => Icons.Material.Filled.Home,
+            "fas fa-tasks" or "tasks.png" => Icons.Material.Filled.List,
+            "fas fa-file-contract" or "file-contract.png" => Icons.Material.Filled.Description,
+            "fas fa-user" or "user.png" => Icons.Material.Filled.Person,
+            "fas fa-cog" or "cog.png" => Icons.Material.Filled.Settings,
+            "fas fa-chart-bar" or "chart-bar.png" => Icons.Material.Filled.BarChart,
+            "fas fa-shield-alt" or "shield-alt.png" => Icons.Material.Filled.Security,
+            "fas fa-upload" or "upload.png" => Icons.Material.Filled.UploadFile,
+            "fas fa-download" or "download.png" => Icons.Material.Filled.Download,
+            _ => Icons.Material.Filled.Circle
+        };
+    }
+}

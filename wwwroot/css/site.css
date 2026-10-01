@@ -1,0 +1,231 @@
+/* === Styles de police personnalisés === */
+/* Importation de police (optionnel) */
+/*
+@import url('https://fonts.googleapis.com/css2?family=Open Sans:wght@300;400;500;600;700&display=swap');
+*/
+
+/* Styles pour le TreeView */
+.tree-view-container {
+    max-height: 70vh;
+    overflow-y: auto;
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif;
+    font-size: 0.95rem;
+}
+
+.tree-view-container ul {
+    list-style-type: none;
+    padding-left: 1rem;
+}
+
+.tree-view-container li {
+    margin: 0.25rem 0;
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif;
+    font-size: 0.95rem;
+}
+
+/* Style pour les différents types de menus */
+.menu-category-command {
+    background-color: #fff3cd;
+    border-left: 3px solid #ffc107;
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif;
+}
+
+.menu-category-form {
+    background-color: #d1ecf1;
+    border-left: 3px solid #17a2b8;
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif;
+}
+
+.menu-category-workflow {
+    background-color: #d4edda;
+    border-left: 3px solid #28a745;
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* === Styles personnalisés pour la couleur bleue (RGB 45, 64, 80) === */
+:root {
+    --custom-blue-dark: rgb(45, 64, 80);
+    --custom-blue-dark-hover: rgb(35, 50, 65);
+}
+
+
+
+/* Application de la police de base */
+body {
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif !important;
+    font-size: 1rem !important;
+}
+
+/* === Taille et style de police pour la sidebar === */
+.sidebar {
+    background-color: var(--custom-blue-dark) !important;
+    background-image: linear-gradient(180deg, var(--custom-blue-dark) 10%, var(--custom-blue-dark-hover) 100%) !important;
+    background-size: cover !important;
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif !important;
+    font-size: 0.95rem !important;
+}
+
+/* === Texte en GRAS pour les menus de premier niveau === */
+.sidebar .nav-item .nav-link {
+    color: #ffffff !important;
+    font-weight: 600 !important; /* Demi-gras */
+    font-size: 1.05rem !important; /* Légèrement plus grand */
+    padding: 0.85rem 1rem !important; /* Ajuste l'espacement */
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+.sidebar .nav-item .nav-link:hover {
+    color: #ffffff !important;
+    font-weight: 600 !important; /* Reste demi-gras */
+    background-color: rgba(0, 0, 0, 0.2) !important;
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+/* Couleur des titres dans la sidebar */
+.sidebar .sidebar-heading {
+    color: rgba(255, 255, 255, 0.6) !important;
+    font-size: 0.9rem !important;
+    font-weight: 600 !important; /* Demi-gras pour les titres */
+    text-transform: uppercase !important; /* Titres en majuscules */
+    letter-spacing: 0.5px !important; /* Espacement entre les lettres */
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+/* === CACHER le titre des sous-menus === */
+.sidebar .collapse-header {
+    display: none !important; /* Cache complètement le titre */
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+/* === Fond uniforme bleu foncé pour les sous-menus === */
+.sidebar .collapse-inner {
+    background-color: var(--custom-blue-dark) !important; /* Même couleur que la sidebar */
+    border: none !important; /* Supprime la bordure */
+    border-radius: 0 !important; /* Supprime les coins arrondis */
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+/* === Texte en GRAS pour les sous-menus === */
+.sidebar .collapse-item {
+    color: #ffffff !important;
+    font-weight: 500 !important; /* Normal à demi-gras */
+    font-size: 0.95rem !important; /* Taille standard */
+    background-color: var(--custom-blue-dark) !important; /* Même couleur que la sidebar */
+    padding: 0.75rem 1.25rem !important; /* Plus d'espace à droite */
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+.sidebar .collapse-item:last-child {
+    border-bottom: none !important; /* Pas de bordure pour le dernier élément */
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+.sidebar .collapse-item:hover {
+    background-color: var(--custom-blue-dark-hover) !important; /* Couleur légèrement différente au survol */ 
+    color: #ffffff !important;
+    font-weight: 500 !important; /* Reste en gras normal */
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+/* Couleur de la barre du haut */
+.topbar {
+    background-color: var(--custom-blue-dark) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+    font-size: 1rem !important;
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+.topbar .nav-item .nav-link {
+    color: rgba(255, 255, 255, 0.85) !important;
+    font-size: 1rem !important;
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+/* Couleur du texte dans le dropdown utilisateur */
+.dropdown-menu {
+    background-color: var(--custom-blue-dark) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+.dropdown-item {
+    color: rgba(255, 255, 255, 0.85) !important;
+    font-size: 0.95rem !important;
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+.dropdown-item:hover {
+    background-color: rgba(255, 255, 255, 0.15) !important;
+    color: #ffffff !important;
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+/* Autres éléments de la sidebar */
+.sidebar-dark .sidebar-brand {
+    color: #ffffff !important;
+    font-weight: 600 !important; /* Demi-gras pour le brand */
+    font-size: 1.2rem !important; /* Plus grand pour le titre principal */
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+.sidebar-dark .sidebar-brand:hover {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+.sidebar-dark hr.sidebar-divider {
+    border-top: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Icônes dans la sidebar */
+.sidebar .nav-item .nav-link i {
+    color: rgba(255, 255, 255, 0.7) !important;
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+/* Titres H1-H6 */
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+/* Liens */
+a {
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+/* Boutons */
+.btn {
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+/* Formulaires */
+.form-control {
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+/* Cartes */
+.card {
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+.menu-icon {
+    display: inline-block;
+    margin-right: 0.5rem;
+}
+
+.nav-link .menu-icon {
+    min-width: 16px;
+    text-align: center;
+}
+
+/* Transformer les images noires en blanches dans le sidebar */
+.sidebar-icon {
+    filter: brightness(0) invert(1);
+}
+
+/* Optionnel : styles supplémentaires pour un meilleur alignement */
+.nav-link {
+    display: flex;
+    align-items: center;
+}

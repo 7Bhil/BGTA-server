@@ -1,0 +1,620 @@
+﻿@page "/Mission"
+@attribute [Authorize]
+
+@using Microsoft.AspNetCore.Components.Authorization
+@using BGTA.Server.Models
+@using BGTA.Server.Data.Services
+
+@inject BapiService BapiService
+@inject NavigationManager NavigationManager
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<style>
+    .mud-table-row:hover {
+        background-color: rgba(59, 130, 246, 0.05) !important;
+        transition: 0.3s ease;
+    }
+
+    .glass-header-icon {
+        background: rgba(255, 255, 255, 0.15);
+        backdrop-filter: blur(4px);
+        border-radius: 12px;
+        padding: 10px;
+    }
+
+    .action-btn {
+        transition: transform 0.2s;
+    }
+
+        .action-btn:hover {
+            transform: scale(1.1);
+        }
+
+    .custom-card-form {
+        background: #fafafa;
+        border: 1px solid #e2e8f0;
+        border-radius: 20px;
+    }
+
+    .id-badge {
+        background: #f1f5f9;
+        color: #64748b;
+        font-family: monospace;
+        font-weight: bold;
+        border-radius: 6px;
+        padding: 2px 8px;
+        border: 1px solid #e2e8f0;
+    }
+</style>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-8 mb-8">
+
+    <MudPaper Elevation="25"
+              Class="pa-0 overflow-hidden"
+              Style="border-radius: 24px;">
+
+        <!-- HEADER -->
+        <div style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+                    padding: 28px 32px;
+                    color: white;">
+
+            <div class="d-flex align-center justify-space-between">
+
+                <div class="d-flex align-center">
+
+                    <div class="glass-header-icon mr-4">
+                        <MudIcon Icon="@Icons.Material.Filled.Assignment"
+                                 Size="Size.Large"
+                                 Color="Color.Inherit" />
+                    </div>
+
+                    <div>
+                        <MudText Typo="Typo.h5"
+                                 Style="font-weight:700;">
+                            Missions (MIS)
+                        </MudText>
+
+                        <MudText Typo="Typo.body2"
+                                 Style="opacity:0.75;">
+                            Configuration des missions
+                        </MudText>
+                    </div>
+
+                </div>
+
+                <div class="d-flex align-center">
+
+                    <MudMenu Icon="@Icons.Material.Filled.FileDownload"
+                             Color="Color.Inherit"
+                             AnchorOrigin="Origin.BottomRight"
+                             TransformOrigin="Origin.TopRight">
+
+                        <MudMenuItem OnClick="@(() => ExportData("Excel"))">
+                            <MudIcon Icon="@Icons.Material.Filled.TableChart"
+                                     Class="mr-2" />
+                            Export Excel
+                        </MudMenuItem>
+
+                        <MudMenuItem OnClick="@(() => ExportData("PDF"))">
+                            <MudIcon Icon="@Icons.Material.Filled.PictureAsPdf"
+                                     Class="mr-2" />
+                            Export PDF
+                        </MudMenuItem>
+
+                    </MudMenu>
+
+                    <MudIconButton Icon="@Icons.Material.Filled.Close"
+                                   Color="Color.Inherit"
+                                   OnClick="ClosePage"
+                                   Class="ml-2" />
+
+                </div>
+
+            </div>
+        </div>
+
+        <!-- TABS -->
+        <MudTabs @bind-ActivePanelIndex="_activeTab"
+                 Rounded="true"
+                 Elevation="0"
+                 PanelClass="pa-6">
+
+            <!-- LISTE -->
+            <MudTabPanel Text="RÉFÉRENTIEL MISSIONS"
+                         Icon="@Icons.Material.Filled.List">
+
+                <div class="d-flex align-center mb-4">
+
+                    <MudTextField @bind-Value="_searchString"
+                                  Placeholder="Rechercher une mission..."
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  Class="mr-4"
+                                  Style="max-width:350px;" />
+
+                    <MudSelect T="bool?"
+                               @bind-Value="_filterActif"
+                               Label="Statut"
+                               Variant="Variant.Outlined"
+                               Margin="Margin.Dense"
+                               Style="max-width:220px;">
+
+                        <MudSelectItem T="bool?" Value="@((bool?)null)">
+                            Tous les statuts
+                        </MudSelectItem>
+
+                        <MudSelectItem T="bool?" Value="@((bool?)true)">
+                            Actifs uniquement
+                        </MudSelectItem>
+
+                        <MudSelectItem T="bool?" Value="@((bool?)false)">
+                            Inactifs uniquement
+                        </MudSelectItem>
+
+                    </MudSelect>
+
+                    <MudSpacer />
+
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="AddNewItem">
+                        Nouvelle mission
+                    </MudButton>
+
+                </div>
+
+                @if (_isLoadingList)
+                {
+                    <MudProgressLinear Color="Color.Primary"
+                                       Indeterminate="true"
+                                       Class="mb-4" />
+                }
+
+                <MudDataGrid T="MissionItem"
+                             Items="@_items"
+                             Hover="true"
+                             Elevation="0"
+                             QuickFilter="@QuickFilter"
+                             Dense="false"
+                             Striped="false"
+                             Bordered="true"
+                             Class="rounded-lg shadow-sm">
+
+                    <Columns>
+
+                        <PropertyColumn Property="x => x.IdMIS_PK"
+                                        Title="ID"
+                                        Sortable="true"
+                                        Filterable="false">
+
+                            <CellTemplate>
+                                <span class="id-badge">
+                                    @context.Item.IdMIS_PK
+                                </span>
+                            </CellTemplate>
+
+                        </PropertyColumn>
+
+                        <PropertyColumn Property="x => x.CodeMIS"
+                                        Title="Code"
+                                        Sortable="true">
+
+                            <CellTemplate>
+                                <MudChip T="string"
+                                         Color="Color.Primary"
+                                         Variant="Variant.Outlined"
+                                         Size="Size.Small">
+                                    @context.Item.CodeMIS
+                                </MudChip>
+                            </CellTemplate>
+
+                        </PropertyColumn>
+
+                        <PropertyColumn Property="x => x.LibMIS"
+                                        Title="Libellé"
+                                        Sortable="true" />
+
+                        <PropertyColumn Property="x => x.IdSOC_FK"
+                                        Title="Société"
+                                        Sortable="true" />
+
+                        <PropertyColumn Property="x => x.Actif"
+                                        Title="Statut"
+                                        Sortable="true">
+
+                            <CellTemplate>
+                                @if (context.Item.Actif)
+                                {
+                                    <MudChip T="string"
+                                             Color="Color.Success"
+                                             Size="Size.Small">
+                                        Actif
+                                    </MudChip>
+                                }
+                                else
+                                {
+                                    <MudChip T="string"
+                                             Color="Color.Default"
+                                             Size="Size.Small">
+                                        Inactif
+                                    </MudChip>
+                                }
+                            </CellTemplate>
+
+                        </PropertyColumn>
+
+                        <PropertyColumn Property="x => x.DateCreation"
+                                        Title="Création"
+                                        Sortable="true">
+                            <CellTemplate>
+                                @context.Item.DateCreation.ToString("dd/MM/yyyy HH:mm")
+                            </CellTemplate>
+                        </PropertyColumn>
+
+                        <TemplateColumn Title="Actions"
+                                        Sortable="false"
+                                        Filterable="false">
+
+                            <CellTemplate>
+
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                               Color="Color.Warning"
+                                               Size="Size.Small"
+                                               Class="action-btn"
+                                               OnClick="@(() => PrepareEdit(context.Item))" />
+
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                               Color="Color.Error"
+                                               Size="Size.Small"
+                                               Class="action-btn"
+                                               OnClick="@(() => DeleteItemInline(context.Item))" />
+
+                            </CellTemplate>
+
+                        </TemplateColumn>
+
+                    </Columns>
+
+                    <PagerContent>
+                        <MudDataGridPager T="MissionItem" />
+                    </PagerContent>
+
+                </MudDataGrid>
+
+            </MudTabPanel>
+
+            <!-- FORMULAIRE -->
+            <MudTabPanel Text="FORMULAIRE"
+                         Icon="@Icons.Material.Filled.Edit">
+
+                <div class="d-flex justify-center">
+
+                    <EditForm Model="@_currentItem"
+                              OnValidSubmit="SaveItem">
+
+                        <DataAnnotationsValidator />
+
+                        <MudCard Class="custom-card-form pa-6"
+                                 Style="max-width:700px; width:100%;">
+
+                            <MudCardHeader>
+
+                                <MudText Typo="Typo.h6"
+                                         Style="font-weight:700;">
+                                    @(_currentItem.IdMIS_PK == 0
+                                                                        ? "Nouvelle mission"
+                                                                        : "Modifier la mission")
+                                </MudText>
+
+                            </MudCardHeader>
+
+                            <MudCardContent>
+
+                                <MudGrid>
+
+                                    <MudItem xs="12" sm="6">
+
+                                        <MudNumericField T="long"
+                                                         @bind-Value="_currentItem.IdSOC_FK"
+                                                         Label="ID Société"
+                                                         Variant="Variant.Outlined"
+                                                         Required="true"
+                                                         Min="1" />
+
+                                    </MudItem>
+
+                                    <MudItem xs="12" sm="6">
+
+                                        <MudTextField @bind-Value="_currentItem.CodeMIS"
+                                                      Label="Code Mission"
+                                                      Variant="Variant.Outlined"
+                                                      Required="true"
+                                                      MaxLength="20"
+                                                      Counter="20" />
+
+                                    </MudItem>
+
+                                    <MudItem xs="12" sm="6">
+
+                                        <MudTextField @bind-Value="_currentItem.LibMIS"
+                                                      Label="Libellé de la Mission"
+                                                      Variant="Variant.Outlined"
+                                                      Required="true"
+                                                      MaxLength="100"
+                                                      Counter="100" />
+
+                                    </MudItem>
+
+                                    <MudItem xs="12">
+
+                                        <MudSwitch @bind-Value="_currentItem.Actif"
+                                                   Color="Color.Success"
+                                                   Label="Mission active" />
+
+                                    </MudItem>
+
+                                </MudGrid>
+
+                            </MudCardContent>
+
+                            <MudCardActions Class="justify-end pa-4">
+
+                                <MudButton Variant="Variant.Outlined"
+                                           Color="Color.Default"
+                                           OnClick="CancelEdit"
+                                           Class="mr-2">
+                                    Annuler
+                                </MudButton>
+
+                                <MudButton Variant="Variant.Filled"
+                                           Color="Color.Primary"
+                                           ButtonType="ButtonType.Submit"
+                                           StartIcon="@Icons.Material.Filled.Save">
+                                    Enregistrer
+                                </MudButton>
+
+                            </MudCardActions>
+
+                        </MudCard>
+
+                    </EditForm>
+
+                </div>
+
+            </MudTabPanel>
+
+        </MudTabs>
+
+    </MudPaper>
+
+</MudContainer>
+
+@code {
+
+    private int _activeTab = 0;
+    private bool _isLoadingList = false;
+    private string _searchString = string.Empty;
+    private bool? _filterActif = null;
+
+    private List<MissionItem> _items = new();
+    private MissionItem _currentItem = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _isLoadingList = true;
+
+        try
+        {
+            var result = await BapiService.ExecuteProcedureAsync(
+                1,
+                "PS1238",
+                new object?[] { null });
+
+            _items = result
+    .Select(x => new MissionItem
+    {
+        IdMIS_PK = Convert.ToInt32(x["IdMIS_PK"]),
+        IdSOC_FK = Convert.ToInt64(x["IdSOC_FK"]),
+        CodeMIS = x["CodeMIS"]?.ToString() ?? string.Empty,
+        LibMIS = x["LibMIS"]?.ToString() ?? string.Empty,
+        Actif = Convert.ToBoolean(x["Actif"]),
+        DateCreation = Convert.ToDateTime(x["DateCreation"]),
+        DateModification = x["DateModification"] == null
+            ? null
+            : Convert.ToDateTime(x["DateModification"])
+    })
+    .ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(
+                $"Erreur lors du chargement : {ex.Message}",
+                Severity.Error);
+        }
+        finally
+        {
+            _isLoadingList = false;
+        }
+    }
+
+    private Func<MissionItem, bool> QuickFilter => x =>
+    {
+        if (_filterActif.HasValue &&
+            x.Actif != _filterActif.Value)
+            return false;
+
+        if (string.IsNullOrWhiteSpace(_searchString))
+            return true;
+
+        return
+            x.CodeMIS.Contains(
+                _searchString,
+                StringComparison.OrdinalIgnoreCase)
+            ||
+            x.LibMIS.Contains(
+                _searchString,
+                StringComparison.OrdinalIgnoreCase)
+            ||
+            x.IdMIS_PK.ToString().Contains(_searchString);
+    };
+
+    private void AddNewItem()
+    {
+        _currentItem = new MissionItem
+        {
+            Actif = true,
+            DateCreation = DateTime.Now
+        };
+
+        _activeTab = 1;
+    }
+
+    private void PrepareEdit(MissionItem item)
+    {
+        _currentItem = new MissionItem
+        {
+            IdMIS_PK = item.IdMIS_PK,
+            IdSOC_FK = item.IdSOC_FK,
+            CodeMIS = item.CodeMIS,
+            LibMIS = item.LibMIS,
+            Actif = item.Actif,
+            DateCreation = item.DateCreation,
+            DateModification = item.DateModification
+        };
+
+        _activeTab = 1;
+    }
+
+    private async Task SaveItem()
+    {
+        try
+        {
+            int mode = _currentItem.IdMIS_PK == 0 ? 1 : 2;
+
+            if (mode == 1)
+                _currentItem.DateCreation = DateTime.Now;
+            else
+                _currentItem.DateModification = DateTime.Now;
+
+            var result = await BapiService.ExecuteProcedureAsync(
+                mode,
+                "PS1231",
+                new object?[]
+                {
+                    mode,
+                    _currentItem.IdMIS_PK,
+                    _currentItem.IdSOC_FK,
+                    _currentItem.CodeMIS,
+                    _currentItem.LibMIS,
+                    _currentItem.Actif,
+                    _currentItem.DateCreation,
+                    _currentItem.DateModification,
+                    null
+                });
+
+            Snackbar.Add(
+                mode == 1
+                    ? "Mission ajoutée avec succès."
+                    : "Mission modifiée avec succès.",
+                Severity.Success);
+
+            await LoadData();
+
+            _activeTab = 0;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(
+                $"Erreur : {ex.Message}",
+                Severity.Error);
+        }
+    }
+
+    private async Task DeleteItemInline(MissionItem item)
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Confirmation",
+            $"Voulez-vous vraiment supprimer la mission « {item.LibMIS} » ?",
+            yesText: "Supprimer",
+            cancelText: "Annuler");
+
+        if (confirmed != true)
+            return;
+
+        try
+        {
+            await BapiService.ExecuteProcedureAsync(
+                3,
+                "PS1231",
+                new object?[]
+                {
+                    3,
+                    item.IdMIS_PK,
+                    item.IdSOC_FK,
+                    item.CodeMIS,
+                    item.LibMIS,
+                    item.Actif,
+                    item.DateCreation,
+                    item.DateModification,
+                    null
+                });
+
+            Snackbar.Add(
+                "Mission supprimée avec succès.",
+                Severity.Success);
+
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(
+                $"Erreur lors de la suppression : {ex.Message}",
+                Severity.Error);
+        }
+    }
+
+    private void CancelEdit()
+    {
+        _activeTab = 0;
+    }
+
+    private async Task ExportData(string format)
+    {
+        Snackbar.Add(
+            $"Export {format} en préparation...",
+            Severity.Info);
+
+        await Task.Delay(500);
+    }
+
+    private void ClosePage()
+    {
+        NavigationManager.NavigateTo("/");
+    }
+
+    public class MissionItem
+    {
+        public int IdMIS_PK { get; set; }
+
+        public long IdSOC_FK { get; set; }
+
+        public string CodeMIS { get; set; } = string.Empty;
+
+        public string LibMIS { get; set; } = string.Empty;
+
+        public bool Actif { get; set; }
+
+        public DateTime DateCreation { get; set; }
+
+        public DateTime? DateModification { get; set; }
+    }
+}

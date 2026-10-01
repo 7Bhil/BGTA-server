@@ -1,0 +1,330 @@
+@page "/Login"
+@layout BGTA.Server.Components.Layout.EmptyLayout
+@using System.ComponentModel.DataAnnotations
+@using BGTA.Server.Data.Services
+@inject BapiService BapiService
+@inject NavigationManager Navigation
+@inject LoginTransitionService TransitionService
+@inject ILogger<Login> Logger
+@inject ISnackbar Snackbar
+
+<style>
+    .login-root {
+        min-height: 100vh;
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+
+    .glass-card {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 24px;
+        width: 100%;
+        max-width: 450px;
+        border: 1px solid rgba(255,255,255,0.2);
+    }
+
+    .logo-container {
+        background: #3b82f6;
+        width: 80px;
+        height: 80px;
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: -40px auto 20px;
+        box-shadow: 0 10px 25px rgba(59, 130, 246, 0.4);
+        transform: rotate(-5deg);
+    }
+
+    .fade-in-up {
+        animation: fadeInUp 0.6s ease-out;
+    }
+
+    /* Correction : Utilisation de @@ pour échapper le symbole Razor dans le bloc de style */
+    @@keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+</style>
+
+<div class="login-root">
+    <div class="glass-card pa-8 shadow-24 fade-in-up">
+
+        @* --- LOGO & TITRE --- *@
+        <div class="text-center mb-8">
+            <div class="logo-container">
+                <MudIcon Icon="@Icons.Material.Filled.Shield" Color="Color.Surface" Size="Size.Large" />
+            </div>
+            <MudText Typo="Typo.h4" Style="font-weight: 900; color: #1e293b;">BGTA</MudText>
+            <MudText Typo="Typo.body2" Class="text-muted">Système Intégré de Gestion des Marchés Publics</MudText>
+        </div>
+
+        @* --- ALERTES --- *@
+        @if (IsSessionExpired)
+        {
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Filled" Class="mb-6 rounded-lg" Elevation="2">
+                Session expirée après 1h d'inactivité.
+            </MudAlert>
+        }
+        else if (!string.IsNullOrEmpty(ErrorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Class="mb-6 rounded-lg" Elevation="2">
+                @ErrorMessage
+            </MudAlert>
+        }
+
+        <EditForm Model="@loginModel" OnValidSubmit="HandleLogin">
+            <DataAnnotationsValidator />
+
+            <MudStack Spacing="4">
+
+                @* 1. IDENTIFIANT *@
+                <MudTextField @bind-Value="loginModel.Username"
+                              Label="Identifiant"
+                              Variant="Variant.Outlined"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Person"
+                              AdornmentColor="Color.Primary"
+                              OnBlur="OnUsernameBlur"
+                              @oninput="ClearMessages"
+                              Required="true"
+                              Class="rounded-lg" />
+
+                @* 2. PROFIL (Affiché dynamiquement via MudSelect) *@
+                <div class="@(AvailableProfils.Any() ? "fade-in" : "d-none")">
+                    <MudSelect T="int" Label="Profil d'accès"
+                               @bind-Value="loginModel.SelectedProfilId"
+                               Variant="Variant.Outlined"
+                               AnchorOrigin="Origin.BottomCenter"
+                               AdornmentIcon="@Icons.Material.Filled.VerifiedUser"
+                               AdornmentColor="Color.Info"
+                               Required="true"
+                               Class="rounded-lg">
+                        <MudSelectItem T="int" Value="0">Choisir un profil...</MudSelectItem>
+                        @foreach (var p in AvailableProfils)
+                        {
+                            <MudSelectItem T="int" Value="@p.IdProfil">@p.LibProfil</MudSelectItem>
+                        }
+                    </MudSelect>
+                </div>
+
+                @* 3. MOT DE PASSE *@
+                <MudTextField @bind-Value="loginModel.Password"
+                              Label="Mot de passe"
+                              Variant="Variant.Outlined"
+                              InputType="@_passwordInput"
+                              Adornment="Adornment.End"
+                              AdornmentIcon="@_passwordInputIcon"
+                              OnAdornmentClick="TogglePasswordVisibility"
+                              AdornmentColor="Color.Primary"
+                              @oninput="ClearMessages"
+                              Required="true"
+                              Class="rounded-lg" />
+
+                @* BOUTON CONNEXION *@
+                <MudButton ButtonType="ButtonType.Submit"
+                           Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           FullWidth="true"
+                           Size="Size.Large"
+                           Disabled="@IsLoading"
+                           Class="mt-4 py-3 rounded-pill shadow-lg"
+                           Style="font-weight: bold; font-size: 1.1rem;">
+                    @if (IsLoading)
+                    {
+                        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                        <MudText Class="ms-2">Vérification...</MudText>
+                    }
+                    else
+                    {
+                        <MudText>SE CONNECTER</MudText>
+                    }
+                </MudButton>
+
+            </MudStack>
+        </EditForm>
+
+        <div class="text-center mt-10">
+            <MudText Typo="Typo.caption" Style="color: #64748b;">
+                Â© 2026 République du Bénin | Sécurisé par BGTA-Auth
+            </MudText>
+        </div>
+    </div>
+</div>
+
+@code {
+    private FullLoginModel loginModel = new();
+    private List<ProfilItem> AvailableProfils = new();
+    private string ErrorMessage = string.Empty;
+    private bool IsLoading = false;
+    private bool IsSessionExpired = false;
+    private string _lastUsernameChecked = string.Empty;
+
+    private bool _passwordVisible;
+    private InputType _passwordInput = InputType.Password;
+    private string _passwordInputIcon = Icons.Material.Filled.VisibilityOff;
+
+    void TogglePasswordVisibility()
+    {
+        if (_passwordVisible)
+        {
+            _passwordVisible = false;
+            _passwordInputIcon = Icons.Material.Filled.VisibilityOff;
+            _passwordInput = InputType.Password;
+        }
+        else
+        {
+            _passwordVisible = true;
+            _passwordInputIcon = Icons.Material.Filled.Visibility;
+            _passwordInput = InputType.Text;
+        }
+    }
+
+    public class ProfilItem
+    {
+        public int IdProfil { get; set; }
+        public string LibProfil { get; set; } = "";
+    }
+
+    protected override void OnInitialized()
+    {
+        var uri = Navigation.Uri;
+        if (uri.Contains("expired=true", StringComparison.OrdinalIgnoreCase))
+        {
+            IsSessionExpired = true;
+        }
+    }
+
+    private void ClearMessages()
+    {
+        ErrorMessage = string.Empty;
+        IsSessionExpired = false;
+    }
+
+    private async Task OnUsernameBlur()
+    {
+        var currentUsername = loginModel.Username?.Trim() ?? "";
+
+        if (string.IsNullOrWhiteSpace(currentUsername) || currentUsername == _lastUsernameChecked)
+            return;
+
+        IsLoading = true;
+
+        try
+        {
+            // Appel de la procedure stockee pour recuperer les profils disponibles
+            var result = await BapiService.ExecuteProcedureAsync(
+                1,
+                "PS20038",
+                Array.Empty<object?>());
+
+            if (result != null && result.Length > 0)
+            {
+                // On peuple la liste des profils
+                AvailableProfils = result
+                    .Select(r => new ProfilItem
+                    {
+                        IdProfil = int.TryParse(
+                            r.GetValueOrDefault("IdProfil")?.ToString(),
+                            out int id)
+                            ? id
+                            : 0,
+
+                        LibProfil = r.GetValueOrDefault("LibProfil")?.ToString() ?? ""
+                    })
+                    .Where(x => x.IdProfil > 0)
+                    .ToList();
+
+                if (AvailableProfils.Any())
+                {
+                    loginModel.SelectedProfilId = AvailableProfils[0].IdProfil;
+                    _lastUsernameChecked = currentUsername;
+                }
+
+                ClearMessages();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(
+                ex,
+                "Erreur lors de la récupération des profils pour {User}",
+                currentUsername);
+
+            ErrorMessage = "Impossible de valider l'identifiant.";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private async Task HandleLogin()
+    {
+        // Forcer la vérification si le champ a été rempli sans perte de focus
+        if (AvailableProfils.Count == 0 &&
+            !string.IsNullOrWhiteSpace(loginModel.Username))
+        {
+            await OnUsernameBlur();
+        }
+
+        if (AvailableProfils.Any() &&
+            loginModel.SelectedProfilId == 0)
+        {
+            ErrorMessage = "Veuillez sélectionner un profil.";
+            return;
+        }
+
+        IsLoading = true;
+
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(loginModel.Username) && loginModel.SelectedProfilId > 0)
+            {
+                TransitionService.Username = loginModel.Username;
+                TransitionService.ProfilId = loginModel.SelectedProfilId;
+
+                Navigation.NavigateTo("/Account/LoginProcess", true);
+            }
+            else
+            {
+                ErrorMessage = "Veuillez renseigner votre identifiant et votre profil.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(
+                ex,
+                "Erreur de connexion pour {User}",
+                loginModel.Username);
+
+            ErrorMessage = "Erreur technique lors de la connexion.";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    public class FullLoginModel
+    {
+        [Required(ErrorMessage = "L'identifiant est requis")]
+        public string Username { get; set; } = "";
+
+        [Required(ErrorMessage = "Le mot de passe est requis")]
+        public string Password { get; set; } = "";
+
+        public int SelectedProfilId { get; set; }
+    }
+}

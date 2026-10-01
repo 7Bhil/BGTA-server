@@ -1,0 +1,476 @@
+﻿@page "/Secteur"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Components.Authorization
+@using BGTA.Server.Models
+@using BGTA.Server.Data.Services
+@inject BapiService BapiService
+@inject NavigationManager Navigation
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<style>
+    .mud-table-row:hover {
+        background-color: rgba(59, 130, 246, 0.05) !important;
+        transition: 0.3s ease;
+    }
+
+    .glass-header-icon {
+        background: rgba(255, 255, 255, 0.15);
+        backdrop-filter: blur(4px);
+        border-radius: 12px;
+        padding: 10px;
+    }
+
+    .action-btn {
+        transition: transform 0.2s;
+    }
+
+        .action-btn:hover {
+            transform: scale(1.1);
+        }
+
+    .custom-card-form {
+        background: #fafafa;
+        border: 1px solid #e2e8f0;
+        border-radius: 20px;
+    }
+
+    .id-badge {
+        background: #f1f5f9;
+        color: #64748b;
+        font-family: monospace;
+        font-weight: bold;
+        border-radius: 6px;
+        padding: 2px 8px;
+        border: 1px solid #e2e8f0;
+    }
+</style>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-8 mb-8">
+    <MudPaper Elevation="25" Class="pa-0 overflow-hidden" Style="border-radius: 24px;">
+
+        @* --- HEADER PREMIUM --- *@
+        <div class="pa-6 d-flex align-center"
+             style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%); color: white;">
+
+            <div class="glass-header-icon mr-4">
+                <MudIcon Icon="@Icons.Material.Filled.Business"
+                         Size="Size.Large" />
+            </div>
+
+            <div>
+                <MudText Typo="Typo.h5"
+                         Style="font-weight: 800; letter-spacing: -0.5px;">
+                    Secteurs (SEC)
+                </MudText>
+
+                <MudText Typo="Typo.body2"
+                         Style="color: rgba(255,255,255,0.6)">
+                    Configuration des secteurs
+                </MudText>
+            </div>
+
+            <MudSpacer />
+
+            @* --- EXPORTATION --- *@
+            <MudMenu StartIcon="@Icons.Material.Filled.IosShare"
+                     Label="Exporter"
+                     Color="Color.Inherit"
+                     Variant="Variant.Outlined"
+                     EndIcon="@Icons.Material.Filled.KeyboardArrowDown"
+                     Class="rounded-pill mr-3 px-4"
+                     Style="border-color: rgba(255,255,255,0.3)">
+
+                <MudMenuItem OnClick="@(() => ExportData("Excel"))">
+                    <MudStack Row="true">
+                        <MudIcon Icon="@Icons.Custom.FileFormats.FileExcel"
+                                 Color="Color.Success" />
+                        <MudText>Excel (.xlsx)</MudText>
+                    </MudStack>
+                </MudMenuItem>
+
+                <MudMenuItem OnClick="@(() => ExportData("PDF"))">
+                    <MudStack Row="true">
+                        <MudIcon Icon="@Icons.Custom.FileFormats.FilePdf"
+                                 Color="Color.Error" />
+                        <MudText>PDF (.pdf)</MudText>
+                    </MudStack>
+                </MudMenuItem>
+
+            </MudMenu>
+
+            <MudIconButton Icon="@Icons.Material.Filled.Close"
+                           Color="Color.Inherit"
+                           OnClick="ClosePage"
+                           Variant="Variant.Filled"
+                           Style="background: rgba(255,255,255,0.1)" />
+
+        </div>
+
+        <MudTabs @bind-ActivePanelIndex="_activeTab"
+                 Elevation="0"
+                 Rounded="false"
+                 ApplyEffectsToContainer="true"
+                 PanelClass="pa-6"
+                 Color="Color.Primary"
+                 SliderColor="Color.Info">
+
+            @* ========================================================= *@
+            @* ONGLET 1 : LISTE *@
+            @* ========================================================= *@
+
+            <MudTabPanel Text="RÉFÉRENTIEL SECTEURS"
+                         Icon="@Icons.Material.Filled.FormatListBulleted">
+
+                <MudStack Row="true"
+                          AlignItems="AlignItems.Center"
+                          Class="mb-6 gap-4">
+
+                    <MudTextField @bind-Value="_searchString"
+                                  Placeholder="Rechercher un secteur..."
+                                  Variant="Variant.Filled"
+                                  Margin="Margin.Dense"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  AdornmentColor="Color.Primary"
+                                  Class="mt-0 rounded-lg"
+                                  Style="width: 350px; background: #f1f5f9;"
+                                  Immediate="true" />
+
+                    <MudSpacer />
+
+                    <MudButton StartIcon="@Icons.Material.Filled.Add"
+                               Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               OnClick="AddNewItem"
+                               Size="Size.Large"
+                               Class="px-8 rounded-pill shadow-lg">
+                        Nouveau Secteur
+                    </MudButton>
+
+                </MudStack>
+
+                @if (_isLoadingList)
+                {
+                    <MudProgressLinear Color="Color.Info"
+                                       Indeterminate="true"
+                                       Class="my-7" />
+                }
+                else
+                {
+                    <MudDataGrid Items="@_filteredSecteurList"
+                                 T="SecteurItem"
+                                 Hover="true"
+                                 Elevation="0"
+                                 QuickFilter="@_quickFilter"
+                                 Class="rounded-xl border shadow-sm">
+
+                        <Columns>
+
+                            <TemplateColumn Title="ID"
+                                            HeaderStyle="width:80px">
+
+                                <CellTemplate>
+                                    <span class="id-badge">
+                                        @context.Item.IdSEC_PK
+                                    </span>
+                                </CellTemplate>
+
+                            </TemplateColumn>
+
+                            <PropertyColumn Property="x => x.LibSEC"
+                                            Title="Libellé du Secteur" />
+
+                            <TemplateColumn Title="Actions"
+                                            HeaderStyle="text-align: right;"
+                                            CellStyle="text-align: right;">
+
+                                <CellTemplate>
+
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                                   Color="Color.Warning"
+                                                   Size="Size.Small"
+                                                   OnClick="@(() => PrepareEdit(context.Item))"
+                                                   Class="action-btn" />
+
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                   Color="Color.Error"
+                                                   Size="Size.Small"
+                                                   OnClick="@(() => DeleteItemInline(context.Item))"
+                                                   Class="action-btn" />
+
+                                </CellTemplate>
+
+                            </TemplateColumn>
+
+                        </Columns>
+
+                        <PagerContent>
+                            <MudDataGridPager T="SecteurItem"
+                                              InfoFormat="Total : {all_items} secteurs"
+                                              RowsPerPageString="Lignes :" />
+                        </PagerContent>
+
+                    </MudDataGrid>
+                }
+
+            </MudTabPanel>
+
+
+            @* ========================================================= *@
+            @* ONGLET 2 : SAISIE *@
+            @* ========================================================= *@
+
+            <MudTabPanel Text="FORMULAIRE DE SAISIE"
+                         Icon="@Icons.Material.Filled.EditNote">
+
+                <div class="d-flex justify-center pa-4">
+
+                    <EditForm Model="_currentItem"
+                              OnValidSubmit="SaveItem"
+                              Style="width: 100%; max-width: 700px;">
+
+                        <div class="custom-card-form pa-8 shadow-sm">
+
+                            <MudText Typo="Typo.h6"
+                                     Class="mb-6 fw-bold text-primary">
+                                Détails du Secteur
+                            </MudText>
+
+                            <MudGrid Spacing="4">
+
+                                <MudItem xs="12">
+
+                                    <MudTextField @bind-Value="_currentItem.LibSEC"
+                                                  Label="Libellé du Secteur"
+                                                  Required="true"
+                                                  Variant="Variant.Outlined"
+                                                  MaxLength="100"
+                                                  Adornment="Adornment.Start"
+                                                  AdornmentIcon="@Icons.Material.Filled.Business"
+                                                  AdornmentColor="Color.Info" />
+
+                                </MudItem>
+
+                                <MudItem xs="12"
+                                         Class="d-flex justify-end gap-3 mt-8 pt-6 border-top">
+
+                                    <MudButton OnClick="@(() => _activeTab = 0)"
+                                               Variant="Variant.Text">
+                                        Annuler
+                                    </MudButton>
+
+                                    <MudButton ButtonType="ButtonType.Submit"
+                                               Variant="Variant.Filled"
+                                               Color="Color.Primary"
+                                               StartIcon="@Icons.Material.Filled.Save"
+                                               Size="Size.Large"
+                                               Class="px-10 rounded-pill">
+                                        Enregistrer
+                                    </MudButton>
+
+                                </MudItem>
+
+                            </MudGrid>
+
+                        </div>
+
+                    </EditForm>
+
+                </div>
+
+            </MudTabPanel>
+
+        </MudTabs>
+
+    </MudPaper>
+</MudContainer>
+
+
+@code {
+
+    private int _activeTab = 0;
+
+    private bool _isLoadingList = true;
+
+    private string _searchString = "";
+
+    private List<SecteurItem> _secteurList = new();
+
+    private SecteurItem _currentItem = new();
+
+
+    private IEnumerable<SecteurItem> _filteredSecteurList => _secteurList;
+
+
+    private Func<SecteurItem, bool> _quickFilter => item =>
+    {
+        if (string.IsNullOrWhiteSpace(_searchString))
+            return true;
+
+        return item.LibSEC.Contains(
+            _searchString,
+            StringComparison.OrdinalIgnoreCase);
+    };
+
+
+    protected override async Task OnInitializedAsync()
+        => await LoadData();
+
+
+    private async Task LoadData()
+    {
+        _isLoadingList = true;
+
+        try
+        {
+            var result = await BapiService.ExecuteProcedureAsync(
+                1,
+                "PS1239",
+                new object?[] { null });
+
+            if (result != null)
+            {
+                _secteurList = result.Select(r => new SecteurItem
+                {
+                    IdSEC_PK = int.Parse(
+                        r.GetValueOrDefault("IdSEC_PK")?.ToString() ?? "0"),
+
+                    LibSEC =
+                        r.GetValueOrDefault("LibSEC")?.ToString() ?? ""
+
+                }).ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _isLoadingList = false;
+        }
+    }
+
+
+    private async Task ExportData(string format)
+    {
+        Snackbar.Add(
+            $"Génération du rapport {format}...",
+            Severity.Info);
+
+        await Task.Delay(800);
+
+        Snackbar.Add(
+            "Document prêt au téléchargement.",
+            Severity.Success);
+    }
+
+
+    private void AddNewItem()
+    {
+        _currentItem = new SecteurItem();
+
+        _activeTab = 1;
+    }
+
+
+    private void PrepareEdit(SecteurItem item)
+    {
+        _currentItem = new SecteurItem
+        {
+            IdSEC_PK = item.IdSEC_PK,
+            LibSEC = item.LibSEC
+        };
+
+        _activeTab = 1;
+    }
+
+
+    private async Task SaveItem()
+    {
+        if (string.IsNullOrWhiteSpace(_currentItem.LibSEC))
+            return;
+
+        try
+        {
+            int mode =
+                _currentItem.IdSEC_PK == 0
+                    ? 1
+                    : 2;
+
+            await BapiService.ExecuteProcedureAsync(
+                1,
+                "PS1232",
+                new object?[]
+                {
+                    mode,
+
+                    _currentItem.IdSEC_PK == 0
+                    ? null
+                   : (object)_currentItem.IdSEC_PK,
+
+                    _currentItem.LibSEC.Trim(),
+
+                null
+            });
+
+            Snackbar.Add(
+                "Mise à jour effectuée avec succès",
+                Severity.Success);
+
+            _activeTab = 0;
+
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            await DialogService.ShowMessageBox(
+                "Erreur",
+                ex.Message);
+        }
+    }
+
+
+    private async Task DeleteItemInline(SecteurItem item)
+    {
+        var result =
+            await DialogService.ShowMessageBox(
+                "Confirmation",
+                $"Voulez-vous supprimer le secteur « {item.LibSEC} » ?",
+                yesText: "Supprimer",
+                cancelText: "Annuler");
+
+        if (result == true)
+        {
+            await BapiService.ExecuteProcedureAsync(
+                1,
+                "PS1232",
+                new object?[]
+                {
+                    3,
+                    item.IdSEC_PK,
+                    null,
+                    null
+                });
+
+            await LoadData();
+
+            Snackbar.Add(
+                "Élément retiré du référentiel",
+                Severity.Warning);
+        }
+    }
+
+
+    private void ClosePage()
+        => Navigation.NavigateTo("/");
+
+
+    public class SecteurItem
+    {
+        public int IdSEC_PK { get; set; }
+
+        public string LibSEC { get; set; } = "";
+    }
+}

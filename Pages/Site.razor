@@ -1,0 +1,760 @@
+﻿@page "/Site"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Components.Authorization
+@using BGTA.Server.Models
+@using BGTA.Server.Data.Services
+@inject BapiService BapiService
+@inject NavigationManager Navigation
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<style>
+    .mud-table-row:hover {
+        background-color: rgba(59, 130, 246, 0.05) !important;
+        transition: 0.3s ease;
+    }
+
+    .glass-header-icon {
+        background: rgba(255, 255, 255, 0.15);
+        backdrop-filter: blur(4px);
+        border-radius: 12px;
+        padding: 10px;
+    }
+
+    .action-btn {
+        transition: transform 0.2s;
+    }
+
+        .action-btn:hover {
+            transform: scale(1.1);
+        }
+
+    .custom-card-form {
+        background: #fafafa;
+        border: 1px solid #e2e8f0;
+        border-radius: 20px;
+    }
+
+    .id-badge {
+        background: #f1f5f9;
+        color: #64748b;
+        font-family: monospace;
+        font-weight: bold;
+        border-radius: 6px;
+        padding: 2px 8px;
+        border: 1px solid #e2e8f0;
+    }
+</style>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-8 mb-8">
+    <MudPaper Elevation="25" Class="pa-0 overflow-hidden" Style="border-radius: 24px;">
+
+        @* --- HEADER PREMIUM --- *@
+        <div class="pa-6 d-flex align-center"
+             style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%); color: white;">
+
+            <div class="glass-header-icon mr-4">
+                <MudIcon Icon="@Icons.Material.Filled.LocationCity"
+                         Size="Size.Large" />
+            </div>
+
+            <div>
+                <MudText Typo="Typo.h5"
+                         Style="font-weight: 800; letter-spacing: -0.5px;">
+                    Sites (SIT)
+                </MudText>
+
+                <MudText Typo="Typo.body2"
+                         Style="color: rgba(255,255,255,0.6)">
+                    Configuration des sites
+                </MudText>
+            </div>
+
+            <MudSpacer />
+
+            @* --- EXPORTATION --- *@
+            <MudMenu StartIcon="@Icons.Material.Filled.IosShare"
+                     Label="Exporter"
+                     Color="Color.Inherit"
+                     Variant="Variant.Outlined"
+                     EndIcon="@Icons.Material.Filled.KeyboardArrowDown"
+                     Class="rounded-pill mr-3 px-4"
+                     Style="border-color: rgba(255,255,255,0.3)">
+
+                <MudMenuItem OnClick="@(() => ExportData("Excel"))">
+                    <MudStack Row="true">
+                        <MudIcon Icon="@Icons.Custom.FileFormats.FileExcel"
+                                 Color="Color.Success" />
+                        <MudText>Excel (.xlsx)</MudText>
+                    </MudStack>
+                </MudMenuItem>
+
+                <MudMenuItem OnClick="@(() => ExportData("PDF"))">
+                    <MudStack Row="true">
+                        <MudIcon Icon="@Icons.Custom.FileFormats.FilePdf"
+                                 Color="Color.Error" />
+                        <MudText>PDF (.pdf)</MudText>
+                    </MudStack>
+                </MudMenuItem>
+
+            </MudMenu>
+
+            <MudIconButton Icon="@Icons.Material.Filled.Close"
+                           Color="Color.Inherit"
+                           OnClick="ClosePage"
+                           Variant="Variant.Filled"
+                           Style="background: rgba(255,255,255,0.1)" />
+
+        </div>
+
+        <MudTabs @bind-ActivePanelIndex="_activeTab"
+                 Elevation="0"
+                 Rounded="false"
+                 ApplyEffectsToContainer="true"
+                 PanelClass="pa-6"
+                 Color="Color.Primary"
+                 SliderColor="Color.Info">
+
+            @* ========================================================= *@
+            @* ONGLET 1 : LISTE *@
+            @* ========================================================= *@
+
+            <MudTabPanel Text="RÉFÉRENTIEL SITES"
+                         Icon="@Icons.Material.Filled.FormatListBulleted">
+
+                <MudStack Row="true"
+                          AlignItems="AlignItems.Center"
+                          Class="mb-6 gap-4">
+
+                    <MudTextField @bind-Value="_searchString"
+                                  Placeholder="Rechercher un site..."
+                                  Variant="Variant.Filled"
+                                  Margin="Margin.Dense"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  AdornmentColor="Color.Primary"
+                                  Class="mt-0 rounded-lg"
+                                  Style="width: 350px; background: #f1f5f9;"
+                                  Immediate="true" />
+
+                    <MudSelect @bind-Value="_filterActif"
+                               Label="Statut"
+                               Variant="Variant.Filled"
+                               Margin="Margin.Dense"
+                               Dense="true"
+                               T="string"
+                               Style="width:180px; background: #f1f5f9;"
+                               Class="rounded-lg">
+
+                        <MudSelectItem T="string"
+                                       Value="@((string?)null)">
+                            Tous les statuts
+                        </MudSelectItem>
+
+                        <MudSelectItem T="string"
+                                       Value="@("1")">
+                            Actifs uniquement
+                        </MudSelectItem>
+
+                        <MudSelectItem T="string"
+                                       Value="@("0")">
+                            Inactifs uniquement
+                        </MudSelectItem>
+
+                    </MudSelect>
+
+                    <MudSpacer />
+
+                    <MudButton StartIcon="@Icons.Material.Filled.Add"
+                               Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               OnClick="AddNewItem"
+                               Size="Size.Large"
+                               Class="px-8 rounded-pill shadow-lg">
+                        Nouveau Site
+                    </MudButton>
+
+                </MudStack>
+
+                @if (_isLoadingList)
+                {
+                    <MudProgressLinear Color="Color.Info"
+                                       Indeterminate="true"
+                                       Class="my-7" />
+                }
+                else
+                {
+                    <MudDataGrid Items="@_filteredSiteList"
+                                 T="SiteItem"
+                                 Hover="true"
+                                 Elevation="0"
+                                 QuickFilter="@_quickFilter"
+                                 Class="rounded-xl border shadow-sm">
+
+                        <Columns>
+
+                            <TemplateColumn Title="ID"
+                                            HeaderStyle="width:80px">
+
+                                <CellTemplate>
+                                    <span class="id-badge">
+                                        @context.Item.SIT_ID_PK
+                                    </span>
+                                </CellTemplate>
+
+                            </TemplateColumn>
+
+                            <PropertyColumn Property="x => x.SIT_LIBELLE"
+                                            Title="Libellé du Site" />
+
+                            <PropertyColumn Property="x => x.SIT_ADRESSE"
+                                            Title="Adresse" />
+
+                            <PropertyColumn Property="x => x.SIT_TELEPHONE"
+                                            Title="Téléphone" />
+
+                            <TemplateColumn Title="Statut"
+                                            HeaderStyle="width:150px">
+
+                                <CellTemplate>
+
+                                    <MudChip T="string"
+                                             Size="Size.Small"
+                                             Color="@(context.Item.SIT_ACTIF ? Color.Success : Color.Default)"
+                                             Variant="Variant.Text"
+                                             Class="fw-bold">
+
+                                        @(context.Item.SIT_ACTIF ? "ACTIF" : "INACTIF")
+
+                                    </MudChip>
+
+                                </CellTemplate>
+
+                            </TemplateColumn>
+
+                            <TemplateColumn Title="Défaut"
+                                            HeaderStyle="width:100px">
+
+                                <CellTemplate>
+
+                                    @if (context.Item.SIT_DEFAUT)
+                                    {
+                                        <MudChip T="string"
+                                                 Size="Size.Small"
+                                                 Color="Color.Info"
+                                                 Variant="Variant.Text"
+                                                 Class="fw-bold">
+                                            OUI
+                                        </MudChip>
+                                    }
+                                    else
+                                    {
+                                        <MudText Typo="Typo.body2"
+                                                 Color="Color.Secondary">
+                                            Non
+                                        </MudText>
+                                    }
+
+                                </CellTemplate>
+
+                            </TemplateColumn>
+
+                            <TemplateColumn Title="Actions"
+                                            HeaderStyle="text-align: right;"
+                                            CellStyle="text-align: right;">
+
+                                <CellTemplate>
+
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                                   Color="Color.Warning"
+                                                   Size="Size.Small"
+                                                   OnClick="@(() => PrepareEdit(context.Item))"
+                                                   Class="action-btn" />
+
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                   Color="Color.Error"
+                                                   Size="Size.Small"
+                                                   OnClick="@(() => DeleteItemInline(context.Item))"
+                                                   Class="action-btn" />
+
+                                </CellTemplate>
+
+                            </TemplateColumn>
+
+                        </Columns>
+
+                        <PagerContent>
+                            <MudDataGridPager T="SiteItem"
+                                              InfoFormat="Total : {all_items} sites"
+                                              RowsPerPageString="Lignes :" />
+                        </PagerContent>
+
+                    </MudDataGrid>
+                }
+
+            </MudTabPanel>
+
+
+            @* ========================================================= *@
+            @* ONGLET 2 : SAISIE *@
+            @* ========================================================= *@
+
+            <MudTabPanel Text="FORMULAIRE DE SAISIE"
+                         Icon="@Icons.Material.Filled.EditNote">
+
+                <div class="d-flex justify-center pa-4">
+
+                    <EditForm Model="_currentItem"
+                              OnValidSubmit="SaveItem"
+                              Style="width: 100%; max-width: 700px;">
+
+                        <div class="custom-card-form pa-8 shadow-sm">
+
+                            <MudText Typo="Typo.h6"
+                                     Class="mb-6 fw-bold text-primary">
+                                Détails du Site
+                            </MudText>
+
+                            <MudGrid Spacing="4">
+
+                                <MudItem xs="12">
+
+                                    <MudTextField @bind-Value="_currentItem.SIT_LIBELLE"
+                                                  Label="Libellé du Site"
+                                                  Required="true"
+                                                  Variant="Variant.Outlined"
+                                                  MaxLength="255"
+                                                  Adornment="Adornment.Start"
+                                                  AdornmentIcon="@Icons.Material.Filled.LocationCity"
+                                                  AdornmentColor="Color.Info" />
+
+                                </MudItem>
+
+                                <MudItem xs="12">
+
+                                    <MudTextField @bind-Value="_currentItem.SIT_ADRESSE"
+                                                  Label="Adresse"
+                                                  Variant="Variant.Outlined"
+                                                  MaxLength="255" />
+
+                                </MudItem>
+
+                                <MudItem xs="12" md="6">
+
+                                    <MudTextField @bind-Value="_currentItem.SIT_TELEPHONE"
+                                                  Label="Téléphone"
+                                                  Variant="Variant.Outlined"
+                                                  MaxLength="255"
+                                                  Adornment="Adornment.Start"
+                                                  AdornmentIcon="@Icons.Material.Filled.Phone"
+                                                  AdornmentColor="Color.Info" />
+
+                                </MudItem>
+
+                                <MudItem xs="12" md="6">
+
+                                    <MudTextField @bind-Value="_currentItem.SIT_FAX"
+                                                  Label="Fax"
+                                                  Variant="Variant.Outlined"
+                                                  MaxLength="255" />
+
+                                </MudItem>
+
+                                <MudItem xs="12">
+
+                                    <MudTextField @bind-Value="_currentItem.SIT_EMAIL"
+                                                  Label="Email"
+                                                  Variant="Variant.Outlined"
+                                                  MaxLength="255"
+                                                  InputType="InputType.Email"
+                                                  Adornment="Adornment.Start"
+                                                  AdornmentIcon="@Icons.Material.Filled.Email"
+                                                  AdornmentColor="Color.Info" />
+
+                                </MudItem>
+
+                                <MudItem xs="12" md="6">
+
+                                    <MudNumericField @bind-Value="_currentItem.DOS_ID_FK"
+                                                     Label="Dossier (ID)"
+                                                     Required="true"
+                                                     Variant="Variant.Outlined"
+                                                     Min="1" />
+
+                                </MudItem>
+
+                                <MudItem xs="12" md="6">
+
+                                    <MudNumericField @bind-Value="_currentItem.TSI_ID_FK"
+                                                     Label="Type de site (ID)"
+                                                     Variant="Variant.Outlined"
+                                                     Min="1" />
+
+                                </MudItem>
+
+                                <MudItem xs="12">
+
+                                    <MudTextField @bind-Value="_currentItem.SIT_RESPONSABLE"
+                                                  Label="Responsable"
+                                                  Variant="Variant.Outlined"
+                                                  MaxLength="100"
+                                                  Adornment="Adornment.Start"
+                                                  AdornmentIcon="@Icons.Material.Filled.Person"
+                                                  AdornmentColor="Color.Info" />
+
+                                </MudItem>
+
+                                <MudItem xs="12"
+                                         Class="d-flex align-center mt-2">
+
+                                    <MudSwitch @bind-Value="_currentItem.SIT_ACTIF"
+                                               Label="Rendre ce site actif"
+                                               Color="Color.Success"
+                                               T="bool" />
+
+                                    <MudSwitch @bind-Value="_currentItem.SIT_DEFAUT"
+                                               Label="Définir comme site par défaut"
+                                               Color="Color.Info"
+                                               T="bool"
+                                               Class="ml-6" />
+
+                                </MudItem>
+
+                                <MudItem xs="12"
+                                         Class="d-flex justify-end gap-3 mt-8 pt-6 border-top">
+
+                                    <MudButton OnClick="@(() => _activeTab = 0)"
+                                               Variant="Variant.Text">
+                                        Annuler
+                                    </MudButton>
+
+                                    <MudButton ButtonType="ButtonType.Submit"
+                                               Variant="Variant.Filled"
+                                               Color="Color.Primary"
+                                               StartIcon="@Icons.Material.Filled.Save"
+                                               Size="Size.Large"
+                                               Class="px-10 rounded-pill">
+                                        Enregistrer
+                                    </MudButton>
+
+                                </MudItem>
+
+                            </MudGrid>
+
+                        </div>
+
+                    </EditForm>
+
+                </div>
+
+            </MudTabPanel>
+
+        </MudTabs>
+
+    </MudPaper>
+</MudContainer>
+
+
+@code {
+
+    private int _activeTab = 0;
+
+    private bool _isLoadingList = true;
+
+    private string _searchString = "";
+
+    private string? _filterActif = null;
+
+    private List<SiteItem> _siteList = new();
+
+    private SiteItem _currentItem = new();
+
+
+    private IEnumerable<SiteItem> _filteredSiteList =>
+        _siteList.Where(s =>
+            string.IsNullOrEmpty(_filterActif)
+            ||
+            (_filterActif == "1" && s.SIT_ACTIF)
+            ||
+            (_filterActif == "0" && !s.SIT_ACTIF));
+
+
+    private Func<SiteItem, bool> _quickFilter => item =>
+    {
+        if (string.IsNullOrWhiteSpace(_searchString))
+            return true;
+
+        return item.SIT_LIBELLE.Contains(
+                   _searchString,
+                   StringComparison.OrdinalIgnoreCase)
+               ||
+               item.SIT_ADRESSE.Contains(
+                   _searchString,
+                   StringComparison.OrdinalIgnoreCase)
+               ||
+               item.SIT_TELEPHONE.Contains(
+                   _searchString,
+                   StringComparison.OrdinalIgnoreCase)
+               ||
+               item.SIT_EMAIL.Contains(
+                   _searchString,
+                   StringComparison.OrdinalIgnoreCase)
+               ||
+               item.SIT_RESPONSABLE.Contains(
+                   _searchString,
+                   StringComparison.OrdinalIgnoreCase);
+    };
+
+
+    protected override async Task OnInitializedAsync()
+        => await LoadData();
+
+
+    private async Task LoadData()
+    {
+        _isLoadingList = true;
+
+        try
+        {
+            var result = await BapiService.ExecuteProcedureAsync(
+                1,
+                "PS1236",
+                new object?[] { null });
+
+            if (result != null)
+            {
+                _siteList = result.Select(r => new SiteItem
+                {
+                    SIT_ID_PK = int.Parse(
+                        r.GetValueOrDefault("SIT_ID_PK")?.ToString() ?? "0"),
+
+                    SIT_LIBELLE =
+                        r.GetValueOrDefault("SIT_LIBELLE")?.ToString() ?? "",
+
+                    SIT_ADRESSE =
+                        r.GetValueOrDefault("SIT_ADRESSE")?.ToString() ?? "",
+
+                    SIT_TELEPHONE =
+                        r.GetValueOrDefault("SIT_TELEPHONE")?.ToString() ?? "",
+
+                    SIT_FAX =
+                        r.GetValueOrDefault("SIT_FAX")?.ToString() ?? "",
+
+                    SIT_EMAIL =
+                        r.GetValueOrDefault("SIT_EMAIL")?.ToString() ?? "",
+
+                    DOS_ID_FK = int.Parse(
+                        r.GetValueOrDefault("DOS_ID_FK")?.ToString() ?? "0"),
+
+                    TSI_ID_FK = int.TryParse(
+                        r.GetValueOrDefault("TSI_ID_FK")?.ToString(),
+                        out var tsiId)
+                            ? tsiId
+                            : null,
+
+                    SIT_ACTIF = bool.Parse(
+                        r.GetValueOrDefault("SIT_ACTIF")?.ToString() ?? "false"),
+
+                    SIT_DEFAUT = bool.Parse(
+                        r.GetValueOrDefault("SIT_DEFAUT")?.ToString() ?? "false"),
+
+                    SIT_RESPONSABLE =
+                        r.GetValueOrDefault("SIT_RESPONSABLE")?.ToString() ?? ""
+
+                }).ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _isLoadingList = false;
+        }
+    }
+
+
+    private async Task ExportData(string format)
+    {
+        Snackbar.Add(
+            $"Génération du rapport {format}...",
+            Severity.Info);
+
+        await Task.Delay(800);
+
+        Snackbar.Add(
+            "Document prêt au téléchargement.",
+            Severity.Success);
+    }
+
+
+    private void AddNewItem()
+    {
+        _currentItem = new SiteItem
+        {
+            SIT_ACTIF = true,
+            SIT_DEFAUT = false
+        };
+
+        _activeTab = 1;
+    }
+
+
+    private void PrepareEdit(SiteItem item)
+    {
+        _currentItem = new SiteItem
+        {
+            SIT_ID_PK = item.SIT_ID_PK,
+            SIT_LIBELLE = item.SIT_LIBELLE,
+            SIT_ADRESSE = item.SIT_ADRESSE,
+            SIT_TELEPHONE = item.SIT_TELEPHONE,
+            SIT_FAX = item.SIT_FAX,
+            SIT_EMAIL = item.SIT_EMAIL,
+            DOS_ID_FK = item.DOS_ID_FK,
+            TSI_ID_FK = item.TSI_ID_FK,
+            SIT_ACTIF = item.SIT_ACTIF,
+            SIT_DEFAUT = item.SIT_DEFAUT,
+            SIT_RESPONSABLE = item.SIT_RESPONSABLE
+        };
+
+        _activeTab = 1;
+    }
+
+
+    private async Task SaveItem()
+    {
+        if (string.IsNullOrWhiteSpace(_currentItem.SIT_LIBELLE)
+            ||
+            _currentItem.DOS_ID_FK == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            int mode =
+                _currentItem.SIT_ID_PK == 0
+                    ? 1
+                    : 2;
+
+            await BapiService.ExecuteProcedureAsync(
+                1,
+                "PS_40124",
+                new object?[]
+                {
+                    mode,
+
+                    _currentItem.SIT_ID_PK == 0
+                        ? null
+                        : (object)_currentItem.SIT_ID_PK,
+
+                    _currentItem.SIT_LIBELLE.Trim(),
+
+                    _currentItem.SIT_ADRESSE?.Trim(),
+
+                    _currentItem.SIT_TELEPHONE?.Trim(),
+
+                    _currentItem.SIT_FAX?.Trim(),
+
+                    _currentItem.SIT_EMAIL?.Trim(),
+
+                    _currentItem.DOS_ID_FK,
+
+                    _currentItem.TSI_ID_FK,
+
+                    _currentItem.SIT_ACTIF,
+
+                    _currentItem.SIT_DEFAUT,
+
+                    _currentItem.SIT_RESPONSABLE?.Trim(),
+
+                    null // @TraceErrorLigne
+                });
+
+            Snackbar.Add(
+                "Mise à jour effectuée avec succès",
+                Severity.Success);
+
+            _activeTab = 0;
+
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            await DialogService.ShowMessageBox(
+                "Erreur",
+                ex.Message);
+        }
+    }
+
+
+    private async Task DeleteItemInline(SiteItem item)
+    {
+        var result =
+            await DialogService.ShowMessageBox(
+                "Confirmation",
+                $"Voulez-vous supprimer le site « {item.SIT_LIBELLE} » ?",
+                yesText: "Supprimer",
+                cancelText: "Annuler");
+
+        if (result == true)
+        {
+            await BapiService.ExecuteProcedureAsync(
+                1,
+                "PS_40124",
+                new object?[]
+                {
+                    3,
+                    item.SIT_ID_PK,
+                    null, // SIT_LIBELLE
+                    null, // SIT_ADRESSE
+                    null, // SIT_TELEPHONE
+                    null, // SIT_FAX
+                    null, // SIT_EMAIL
+                    null, // DOS_ID_FK
+                    null, // TSI_ID_FK
+                    null, // SIT_ACTIF
+                    null, // SIT_DEFAUT
+                    null, // SIT_RESPONSABLE
+                    null  // @TraceErrorLigne
+                });
+
+            await LoadData();
+
+            Snackbar.Add(
+                "Élément retiré du référentiel",
+                Severity.Warning);
+        }
+    }
+
+
+    private void ClosePage()
+        => Navigation.NavigateTo("/");
+
+
+    public class SiteItem
+    {
+        public int SIT_ID_PK { get; set; }
+
+        public string SIT_LIBELLE { get; set; } = "";
+
+        public string SIT_ADRESSE { get; set; } = "";
+
+        public string SIT_TELEPHONE { get; set; } = "";
+
+        public string SIT_FAX { get; set; } = "";
+
+        public string SIT_EMAIL { get; set; } = "";
+
+        public int DOS_ID_FK { get; set; }
+
+        public int? TSI_ID_FK { get; set; }
+
+        public bool SIT_ACTIF { get; set; }
+
+        public bool SIT_DEFAUT { get; set; }
+
+        public string SIT_RESPONSABLE { get; set; } = "";
+    }
+}

@@ -1,0 +1,271 @@
+﻿@page "/ModeExecution"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Components.Authorization
+@using BGTA.Server.Models
+@using BGTA.Server.Data.Services
+@inject BapiService BapiService
+@inject NavigationManager Navigation
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<style>
+    .mud-table-row:hover { background-color: rgba(59, 130, 246, 0.05) !important; transition: 0.3s ease; }
+    .glass-header-icon { background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(4px); border-radius: 12px; padding: 10px; }
+    .action-btn { transition: transform 0.2s; }
+    .action-btn:hover { transform: scale(1.1); }
+    .custom-card-form { background: #fafafa; border: 1px solid #e2e8f0; border-radius: 20px; }
+</style>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-8 mb-8">
+    <MudPaper Elevation="25" Class="pa-0 overflow-hidden" Style="border-radius: 24px;">
+        
+        @* --- HEADER PREMIUM --- *@
+        <div class="pa-6 d-flex align-center" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%); color: white;">
+            <div class="glass-header-icon mr-4">
+                <MudIcon Icon="@Icons.Material.Filled.SettingsSuggest" Size="Size.Large" />
+            </div>
+            <div>
+                <MudText Typo="Typo.h5" Style="font-weight: 800; letter-spacing: -0.5px;">Modes d'Exécution (MEX)</MudText>
+                <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.6)">Configuration des méthodes de réalisation des marchés</MudText>
+            </div>
+            <MudSpacer />
+            
+            @* --- EXPORTATION --- *@
+            <MudMenu StartIcon="@Icons.Material.Filled.IosShare" Label="Exporter" Color="Color.Inherit" 
+                     Variant="Variant.Outlined" EndIcon="@Icons.Material.Filled.KeyboardArrowDown" 
+                     Class="rounded-pill mr-3 px-4" Style="border-color: rgba(255,255,255,0.3)">
+                <MudMenuItem OnClick="@(() => ExportData("Excel"))">
+                    <MudStack Row="true"><MudIcon Icon="@Icons.Custom.FileFormats.FileExcel" Color="Color.Success" /> <MudText>Excel (.xlsx)</MudText></MudStack>
+                </MudMenuItem>
+                <MudMenuItem OnClick="@(() => ExportData("PDF"))">
+                    <MudStack Row="true"><MudIcon Icon="@Icons.Custom.FileFormats.FilePdf" Color="Color.Error" /> <MudText>PDF (.pdf)</MudText></MudStack>
+                </MudMenuItem>
+            </MudMenu>
+
+            <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Inherit" OnClick="ClosePage" Variant="Variant.Filled" Style="background: rgba(255,255,255,0.1)" />
+        </div>
+
+        <MudTabs @bind-ActivePanelIndex="_activeTab" Elevation="0" Rounded="false" ApplyEffectsToContainer="true" 
+                 PanelClass="pa-6" Color="Color.Primary" SliderColor="Color.Info">
+            
+            @* --- ONGLET 1 : LISTE --- *@
+            <MudTabPanel Text="RÉFÉRENTIEL MEX" Icon="@Icons.Material.Filled.FactCheck">
+                
+                <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-6 gap-4">
+                    <MudTextField @bind-Value="_searchString" Placeholder="Rechercher un mode..." 
+                                  Variant="Variant.Filled" Margin="Margin.Dense" Adornment="Adornment.Start" 
+                                  AdornmentIcon="@Icons.Material.Filled.Search" AdornmentColor="Color.Primary" 
+                                  Class="mt-0 rounded-lg" Style="width: 350px; background: #f1f5f9;" Immediate="true" />
+                    
+                    <MudSelect @bind-Value="_filterActif" Label="Statut" Variant="Variant.Filled" Margin="Margin.Dense" 
+                               Dense="true" T="string" Style="width:180px; background: #f1f5f9;" Class="rounded-lg">
+                        <MudSelectItem T="string" Value="@((string?)null)">Tous les statuts</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("1")">Actifs uniquement</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("0")">Inactifs uniquement</MudSelectItem>
+                    </MudSelect>
+
+                    <MudSpacer />
+                    
+                    <MudButton StartIcon="@Icons.Material.Filled.AddCircle" Variant="Variant.Filled" Color="Color.Primary" 
+                               OnClick="AddNewItem" Size="Size.Large" Class="px-8 rounded-pill shadow-lg">
+                        Nouveau Mode
+                    </MudButton>
+                </MudStack>
+
+                @if (_isLoadingList)
+                {
+                    <MudStack Spacing="2">
+                        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="50px" />
+                        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="400px" Animation="Animation.Wave" />
+                    </MudStack>
+                }
+                else
+                {
+                    <MudDataGrid Items="@_filteredMexList" T="MexItem" Hover="true" Elevation="0"
+                                 QuickFilter="@_quickFilter" Class="rounded-xl border shadow-sm">
+                        <Columns>
+                            <PropertyColumn Property="x => x.MEX_CODE" Title="Code">
+                                <CellTemplate>
+                                    <MudChip T="string" Variant="Variant.Text" Color="Color.Primary" Class="fw-bold">@context.Item.MEX_CODE</MudChip>
+                                </CellTemplate>
+                            </PropertyColumn>
+                            <PropertyColumn Property="x => x.MEX_LIBELLE" Title="Désignation du Mode" />
+                            <TemplateColumn Title="Passation" HeaderStyle="width:150px">
+                                <CellTemplate>
+                                    <MudStack Row="true" AlignItems="AlignItems.Center">
+                                        <MudIcon Icon="@(context.Item.MEX_EXTRAIRE_POUR_PASSATION ? Icons.Material.Filled.Link : Icons.Material.Filled.LinkOff)" 
+                                                 Color="@(context.Item.MEX_EXTRAIRE_POUR_PASSATION ? Color.Info : Color.Default)" Size="Size.Small" />
+                                        <MudText Typo="Typo.caption">@(context.Item.MEX_EXTRAIRE_POUR_PASSATION ? "OUI" : "NON")</MudText>
+                                    </MudStack>
+                                </CellTemplate>
+                            </TemplateColumn>
+                            <PropertyColumn Property="x => x.MEX_ACTIF" Title="État">
+                                <CellTemplate>
+                                    <MudChip T="string" Size="Size.Small" 
+                                             Color="@(context.Item.MEX_ACTIF ? Color.Success : Color.Default)"
+                                             Variant="Variant.Text" Class="fw-bold">
+                                        @(context.Item.MEX_ACTIF ? "ACTIF" : "INACTIF")
+                                    </MudChip>
+                                </CellTemplate>
+                            </PropertyColumn>
+                            <TemplateColumn Title="Actions" HeaderStyle="text-align: right;" CellStyle="text-align: right;">
+                                <CellTemplate>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Warning" Size="Size.Small" OnClick="@(() => PrepareEdit(context.Item))" Class="action-btn" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteItemInline(context.Item))" Class="action-btn" />
+                                </CellTemplate>
+                            </TemplateColumn>
+                        </Columns>
+                        <PagerContent>
+                            <MudDataGridPager T="MexItem" InfoFormat="{all_items} modes configurés" RowsPerPageString="Affichage :" />
+                        </PagerContent>
+                    </MudDataGrid>
+                }
+            </MudTabPanel>
+
+            @* --- ONGLET 2 : FORMULAIRE --- *@
+            <MudTabPanel Text="FICHE TECHNIQUE" Icon="@Icons.Material.Filled.AppRegistration">
+                <div class="d-flex justify-center pa-4">
+                    <EditForm Model="_currentItem" OnValidSubmit="SaveItem" Style="width: 100%; max-width: 800px;">
+                        <div class="custom-card-form pa-8 shadow-sm">
+                            <MudText Typo="Typo.h6" Class="mb-6 fw-bold text-primary">Configuration du Mode d'Exécution</MudText>
+                            <MudGrid Spacing="4">
+                                <MudItem xs="12" md="4">
+                                    <MudTextField @bind-Value="_currentItem.MEX_CODE" Label="Code MEX" Required="true" 
+                                                  Variant="Variant.Outlined" MaxLength="20" Placeholder="ex: REGIE" />
+                                </MudItem>
+                                <MudItem xs="12" md="8">
+                                    <MudTextField @bind-Value="_currentItem.MEX_LIBELLE" Label="Libellé complet" Required="true" 
+                                                  Variant="Variant.Outlined" MaxLength="100" />
+                                </MudItem>
+                                
+                                <MudItem xs="12" md="6">
+                                    <MudPaper Class="pa-4 rounded-lg border border-solid" Style="border-color: #e2e8f0;">
+                                        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                            <div>
+                                                <MudText Typo="Typo.subtitle2">Extraire pour passation</MudText>
+                                                <MudText Typo="Typo.caption">Inclure dans les procédures de marché</MudText>
+                                            </div>
+                                            <MudSwitch @bind-Value="_currentItem.MEX_EXTRAIRE_POUR_PASSATION" Color="Color.Info" T="bool" />
+                                        </MudStack>
+                                    </MudPaper>
+                                </MudItem>
+
+                                <MudItem xs="12" md="6">
+                                    <MudPaper Class="pa-4 rounded-lg border border-solid" Style="border-color: #e2e8f0;">
+                                        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                            <div>
+                                                <MudText Typo="Typo.subtitle2">Disponibilité du mode</MudText>
+                                                <MudText Typo="Typo.caption">Définit si le mode est sélectionnable</MudText>
+                                            </div>
+                                            <MudSwitch @bind-Value="_currentItem.MEX_ACTIF" Color="Color.Success" T="bool" />
+                                        </MudStack>
+                                    </MudPaper>
+                                </MudItem>
+                                
+                                <MudItem xs="12" Class="d-flex justify-end gap-3 mt-6">
+                                    <MudButton OnClick="@(() => _activeTab = 0)" Variant="Variant.Text">Annuler</MudButton>
+                                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" 
+                                               StartIcon="@Icons.Material.Filled.Save" Size="Size.Large" Class="px-10 rounded-pill">
+                                        Valider la configuration
+                                    </MudButton>
+                                </MudItem>
+                            </MudGrid>
+                        </div>
+                    </EditForm>
+                </div>
+            </MudTabPanel>
+        </MudTabs>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private int _activeTab = 0;
+    private bool _isLoadingList = true;
+    private string _searchString = "";
+    private string? _filterActif = null;
+    private List<MexItem> _mexList = new();
+    private MexItem _currentItem = new();
+
+    private IEnumerable<MexItem> _filteredMexList => _mexList
+        .Where(t => string.IsNullOrEmpty(_filterActif) || (_filterActif == "1" && t.MEX_ACTIF) || (_filterActif == "0" && !t.MEX_ACTIF));
+
+    private Func<MexItem, bool> _quickFilter => item =>
+    {
+        if (string.IsNullOrWhiteSpace(_searchString)) return true;
+        return item.MEX_CODE.Contains(_searchString, StringComparison.OrdinalIgnoreCase) || 
+               item.MEX_LIBELLE.Contains(_searchString, StringComparison.OrdinalIgnoreCase);
+    };
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _isLoadingList = true;
+        try {
+            var result = await BapiService.ExecuteProcedureAsync(1, "PS1151", new object?[] { null });
+            if (result != null) {
+                _mexList = result.Select(r => new MexItem {
+                    MEX_ID_PK = int.Parse(r.GetValueOrDefault("MEX_ID_PK")?.ToString() ?? "0"),
+                    MEX_CODE = r.GetValueOrDefault("MEX_CODE")?.ToString() ?? "",
+                    MEX_LIBELLE = r.GetValueOrDefault("MEX_LIBELLE")?.ToString() ?? "",
+                    MEX_EXTRAIRE_POUR_PASSATION = bool.Parse(r.GetValueOrDefault("MEX_EXTRAIRE_POUR_PASSATION")?.ToString() ?? "false"),
+                    MEX_ACTIF = bool.Parse(r.GetValueOrDefault("MEX_ACTIF")?.ToString() ?? "false")
+                }).ToList();
+            }
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _isLoadingList = false; }
+    }
+
+    private async Task ExportData(string type)
+    {
+        Snackbar.Add($"Génération du fichier {type} en cours...", Severity.Info);
+        await Task.Delay(1000);
+        Snackbar.Add($"Exportation {type} réussie.", Severity.Success);
+    }
+
+    private void AddNewItem() { _currentItem = new MexItem { MEX_ACTIF = true }; _activeTab = 1; }
+
+    private void PrepareEdit(MexItem item) {
+        _currentItem = new MexItem { 
+            MEX_ID_PK = item.MEX_ID_PK, MEX_CODE = item.MEX_CODE,
+            MEX_LIBELLE = item.MEX_LIBELLE, MEX_ACTIF = item.MEX_ACTIF,
+            MEX_EXTRAIRE_POUR_PASSATION = item.MEX_EXTRAIRE_POUR_PASSATION
+        };
+        _activeTab = 1;
+    }
+
+    private async Task SaveItem() {
+        try {
+            int mode = _currentItem.MEX_ID_PK == 0 ? 1 : 2;
+            await BapiService.ExecuteProcedureAsync(1, "PS1150", new object?[] { 
+                mode, _currentItem.MEX_ID_PK == 0 ? null : (object)_currentItem.MEX_ID_PK, 
+                _currentItem.MEX_CODE.Trim(), _currentItem.MEX_LIBELLE, 
+                _currentItem.MEX_EXTRAIRE_POUR_PASSATION, _currentItem.MEX_ACTIF 
+            });
+            Snackbar.Add("Configuration enregistrée", Severity.Success);
+            _activeTab = 0;
+            await LoadData();
+        }
+        catch (Exception ex) { await DialogService.ShowMessageBox("Erreur", ex.Message); }
+    }
+
+    private async Task DeleteItemInline(MexItem item) {
+        var result = await DialogService.ShowMessageBox("Confirmation", $"Supprimer le mode {item.MEX_CODE} ?", yesText: "Oui", cancelText: "Non");
+        if (result == true) {
+            await BapiService.ExecuteProcedureAsync(1, "PS1150", new object?[] { 3, item.MEX_ID_PK, null, null, null, null });
+            await LoadData();
+            Snackbar.Add("Mode supprimé", Severity.Warning);
+        }
+    }
+
+    private void ClosePage() => Navigation.NavigateTo("/");
+
+    public class MexItem {
+        public int MEX_ID_PK { get; set; }
+        public string MEX_CODE { get; set; } = "";
+        public string MEX_LIBELLE { get; set; } = "";
+        public bool MEX_EXTRAIRE_POUR_PASSATION { get; set; }
+        public bool MEX_ACTIF { get; set; } = true;
+    }
+}

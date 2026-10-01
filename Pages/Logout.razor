@@ -1,0 +1,28 @@
+@page "/Logout"
+@using Microsoft.AspNetCore.Authorization
+@attribute [AllowAnonymous]
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject ILogger<Logout> Logger
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            Navigation.NavigateTo("/Account/LogoutProcess", forceLoad: true);
+            // await AuthService.LogoutAsync();
+            Logger.LogInformation("✅ Déconnexion réussie");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "⚠️ Erreur déconnexion (non bloquante)");
+        }
+        finally
+        {
+            // 🔑 CORRECTION : forceLoad = false (éviter la destruction du circuit pendant la navigation)
+            // Le middleware d'authentification redirigera automatiquement vers /Login
+            Navigation.NavigateTo("/", false);
+        }
+    }
+}

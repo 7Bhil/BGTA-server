@@ -1,0 +1,246 @@
+﻿@using System.IO
+@using Microsoft.AspNetCore.Components.Forms
+@using MudBlazor
+@using BGTA.Server.Data.Services
+@using BGTA.Server.Components.Dialogs
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+@inject BapiService BapiService
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Class="mr-3 mb-n1" />
+            Archivage : @EtapeNom
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        @* --- Section Liste des fichiers existants --- *@
+        @if (_listeDocuments != null && _listeDocuments.Any())
+        {
+            <MudText Typo="Typo.subtitle2" Class="mb-2">Documents déjÃ  attachés (@_listeDocuments.Count)</MudText>
+            <MudList T="string" Dense="true" Class="mb-4">
+                @foreach (var doc in _listeDocuments)
+                {
+                    <MudListItem Icon="@Icons.Material.Filled.InsertDriveFile" IconColor="Color.Info">
+                        <div class="d-flex align-center justify-space-between">
+                            <MudText Typo="Typo.body2">@doc.NomFile</MudText>
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                                           Color="Color.Error" 
+                                           Size="Size.Small"
+                                           OnClick="@(() => SupprimerDocument(doc.FileID_PK))" />
+                        </div>
+                    </MudListItem>
+                }
+            </MudList>
+            <MudDivider Class="my-4" />
+        }
+
+        @* --- Section Nouveau Téléchargement --- *@
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Ajouter un nouveau document</MudText>
+        <MudFileUpload T="IBrowserFile" FilesChanged="OnFileChanged" Accept=".pdf,.doc,.docx,.xls,.xlsx">
+            <ActivatorContent>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AttachFile">
+                    Choisir le document
+                </MudButton>
+            </ActivatorContent>
+        </MudFileUpload>
+
+        @if (_file != null)
+        {
+            <MudAlert Severity="Severity.Info" Class="mt-3">@_file.Name (@(_file.Size / 1024) KB)</MudAlert>
+        }
+
+        <MudTextField T="string" Label="Commentaires / Observations" @bind-Value="_commentaires" 
+                      Lines="3" Variant="Variant.Outlined" Class="mt-4" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Fermer</MudButton>
+        <MudButton Color="Color.Success" Variant="Variant.Filled" OnClick="Submit" Disabled="@(_file == null || _isProcessing)">
+            @(_isProcessing ? "Traitement..." : "Enregistrer")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public int ActiviteId { get; set; }
+    [Parameter] public int EtapeId { get; set; }
+    [Parameter] public string EtapeNom { get; set; } = "";
+    
+    // On reÃ§oit l'objet étape complet pour mettre Ã  jour son compteur NB_DOCUMENTS
+    [Parameter] public dynamic? EtapeParent { get; set; } 
+
+    private IBrowserFile? _file;
+    private string _commentaires = "";
+    private bool _isProcessing = false;
+    private int _userId = 0;
+    
+    // Liste locale pour l'affichage dans la modal
+    private List<DocumentView> _listeDocuments = new();
+
+    // Classe interne pour mapper les documents existants
+    public class DocumentView {
+        public int FileID_PK { get; set; }
+        public string NomFile { get; set; } = "";
+    }
+
+    private void OnFileChanged(IBrowserFile file) => _file = file;
+    private void Cancel() => MudDialog.Cancel();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ChargerFichiersExistants();
+        
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity is { IsAuthenticated: true })
+        {
+            var claim = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier) ?? user.FindFirst("UserId");
+            if (claim != null) int.TryParse(claim.Value, out _userId);
+        }
+    }
+
+    private async Task ChargerFichiersExistants()
+{
+    try
+    {
+        // On prépare les paramètres pour le Mode 4
+        // On passe l'ID de l'étape et de l'activité pour filtrer
+        var parameters = new object?[] { 
+            4,          // @P_MODE
+            0,          // @ID_DEW_PK
+            "", "", "", 0, null, 
+            EtapeId,    // @ETA_ID_FK
+            ActiviteId, // @ACT_ID_FK
+            0, "" 
+        };
+
+        // Appel de la PS via votre BapiService
+        var results = await BapiService.ExecuteProcedureAsync(1, "PS1171", parameters);
+
+        if (results != null)
+        {
+            _listeDocuments = results.Select(r => new DocumentView
+            {
+                FileID_PK = ConvertToInt(r["FileID_PK"]),
+                NomFile = r["NomFile"]?.ToString() ?? "Sans nom"
+            }).ToList();
+            
+            // On s'assure que le compteur du parent est bien synchronisé avec la réalité
+            if (EtapeParent != null)
+            {
+                EtapeParent.NB_DOCUMENTS = _listeDocuments.Count;
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        Snackbar.Add("Erreur lors du chargement des documents", Severity.Error);
+        Console.WriteLine(ex.Message);
+    }
+    finally
+    {
+        StateHasChanged();
+    }
+}
+    private async Task Submit()
+    {
+        if (_file == null) return;
+        _isProcessing = true;
+
+        try
+        {
+            using var ms = new MemoryStream();
+            await _file.OpenReadStream(10 * 1024 * 1024).CopyToAsync(ms);
+            byte[] fileBytes = ms.ToArray();
+
+            // Alignement avec PS1171 : Mode 1 (Ajout)
+            var parameters = new object?[] {
+                1,                              // @P_MODE
+                0,                              // @ID_DEW_PK (0 car ajout)
+                _file.Name,                     // @NomFile
+                _file.ContentType,              // @ContentType
+                Path.GetExtension(_file.Name),  // @Extension
+                _file.Size,                     // @Taille (BIGINT)
+                fileBytes,                      // @Fichier (VARBINARY)
+                EtapeId,                        // @ETA_ID_FK
+                ActiviteId,                     // @ACT_ID_FK
+                _userId,                        // @User_ID
+                _commentaires                   // @Commentaires
+            };
+
+            await BapiService.ExecuteProcedureAsync(1, "PS1171", parameters);
+
+            // Mise Ã  jour du compteur parent
+            if(EtapeParent != null) EtapeParent.NB_DOCUMENTS++;
+
+            Snackbar.Add("Document archivé avec succès !", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erreur : {ex.Message}", Severity.Error);
+        }
+        finally { _isProcessing = false; }
+    }
+
+    private async Task SupprimerDocument(int idFile)
+    {
+        try 
+        {
+            // Alignement avec PS1171 : Mode 3 (Suppression)
+            var parameters = new object?[] {
+                3,          // @P_MODE
+                idFile,     // @ID_DEW_PK
+                "", "", "", 0, null, 0, 0, 0, "" // Autres paramètres vides
+            };
+
+            await BapiService.ExecuteProcedureAsync(1, "PS1171", parameters);
+
+            // Mise Ã  jour de l'UI locale
+            var doc = _listeDocuments.FirstOrDefault(d => d.FileID_PK == idFile);
+            if (doc != null) _listeDocuments.Remove(doc);
+
+          if (EtapeParent != null)
+            {
+          // On s'assure aussi de ne pas descendre en dessous de zéro
+            int actuel = (int)EtapeParent.NB_DOCUMENTS;
+          if (actuel > 0)
+          {
+          EtapeParent.NB_DOCUMENTS = actuel - 1;
+          }
+        }
+
+            Snackbar.Add("Fichier supprimé", Severity.Success);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erreur suppression : {ex.Message}", Severity.Error);
+        }
+    }
+
+   
+    private int ConvertToInt(object? obj)
+    {
+        if (obj == null || obj is DBNull) return 0;
+        if (obj is System.Text.Json.JsonElement je)
+        {
+            return je.ValueKind == System.Text.Json.JsonValueKind.Number ? je.GetInt32() : 0;
+        }
+        return Convert.ToInt32(obj);
+    }
+
+    private DateTime? ConvertToDate(object? obj)
+    {
+        if (obj == null || obj is DBNull) return null;
+        if (obj is System.Text.Json.JsonElement je)
+        {
+            return je.ValueKind == System.Text.Json.JsonValueKind.String ? je.GetDateTime() : null;
+        }
+        return obj is DateTime dt ? dt : null;
+    }
+}

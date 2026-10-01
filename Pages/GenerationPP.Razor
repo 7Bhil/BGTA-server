@@ -1,0 +1,306 @@
+﻿@page "/GenerationPP"
+@attribute [Authorize]
+@using BGTA.Server.Models
+@using BGTA.Server.Data.Services
+@using BGTA.Server.Helpers
+@using System.Text.Json
+@using ClosedXML.Excel
+@inject BapiService BapiService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<style>
+    .ae-header { background-color: #1c335a !important; color: white !important; border-bottom: 4px solid #f9a825 !important; }
+    .ae-card { border: 1px solid #e0e0e0; border-left: 5px solid #f9a825; }
+    .status-badge { font-weight: bold; padding: 4px 8px; border-radius: 4px; }
+    .status-approuve { background-color: #e8f5e9; color: #2e7d32; }
+    .status-passation { background-color: #e3f2fd; color: #1976d2; }
+</style>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <MudPaper Elevation="4">
+        @* --- HEADER --- *@
+        <div class="d-flex align-center justify-space-between pa-4 ae-header">
+            <div class="d-flex align-center">
+                <MudIcon Icon="@Icons.Material.Filled.Description" Class="mr-3" Style="font-size: 2rem;" />
+                <MudText Typo="Typo.h5" Class="fw-bold">GÉNÉRATION DU PLAN DE PASSATION (@_nomSocieteActive)</MudText>
+            </div>
+            <div class="d-flex">
+                <MudButton Variant="Variant.Filled" 
+                           Color="Color.Warning" 
+                           StartIcon="@Icons.Material.Filled.CheckCircle" 
+                           OnClick="ValiderEtGenererPPM" 
+                           Disabled="@(!_activites.Any() || _isProcessing)"
+                           Class="mr-2">
+                    Valider et Générer le Plan Officiel
+                </MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="@(() => Navigation.NavigateTo("/Chronogramme"))">Retour</MudButton>
+            </div>
+        </div>
+
+        <div class="pa-4">
+            @* --- SÉLECTION PTA --- *@
+            <MudPaper Class="pa-4 mb-4 ae-card" Elevation="0">
+                <MudGrid>
+                    <MudItem xs="12" md="6">
+                        <MudSelect T="int" Label="Sélectionner le PTA" Value="@_selectedPtaId" ValueChanged="OnPtaSelected" Variant="Variant.Outlined" Dense="true">
+                            <MudSelectItem Value="0">-- Choisir un PTA pour génération --</MudSelectItem>
+                            @foreach (var pta in _listePta) { <MudSelectItem Value="@pta.PTA_ID_PK">@pta.PTA_REFERENCE</MudSelectItem> }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" md="6" Class="d-flex align-center">
+                        <MudAlert Severity="Severity.Info" Dense="true" Class="flex-grow-1">
+                            Seules les activités avec un budget <b>Approuvé</b> sont listées ici.
+                        </MudAlert>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            @if (_isLoading) { <MudProgressLinear Color="Color.Primary" Indeterminate="true" /> }
+            else
+            {
+                <MudTable Items="@_activites" Dense="true" Bordered="true" Hover="true" Striped="true" Elevation="0">
+                    <HeaderContent>
+                        <MudTh>Code</MudTh>
+                        <MudTh>Désignation des prestations</MudTh>
+                        <MudTh>Type de Marché</MudTh>
+                        <MudTh>Mode Passation</MudTh>
+                        <MudTh>Budget Estimé (AE)</MudTh>
+                        <MudTh>Statut</MudTh>
+                        <MudTh>Chronogramme</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Code"><b>@context.ACT_CODE</b></MudTd>
+                        <MudTd DataLabel="Désignation">@context.ACT_DESCRIPTION</MudTd>
+                        <MudTd DataLabel="Type">@context.TYM_LIBELLE</MudTd>
+                        <MudTd DataLabel="Mode">@context.MDP_LIBELLE</MudTd>
+                        <MudTd DataLabel="Budget">@context.ACT_MONTANT_AE_TOTAL.ToString("N0") FCFA</MudTd>
+                        <MudTd DataLabel="Statut">
+                            <span class="status-badge @(context.ACT_STATUT == "APPROUVE" ? "status-approuve" : "status-passation")">
+                                @context.ACT_STATUT
+                            </span>
+                        </MudTd>
+                        <MudTd>
+                            @if (context.HasChronogramme) {
+                                <MudIcon Icon="@Icons.Material.Filled.Check" Color="Color.Success" />
+                            } else {
+                                <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Error" />
+                            }
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+        </div>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private bool _isLoading, _isProcessing;
+    private int _selectedPtaId;
+    private List<PtaItem> _listePta = new();
+    private List<ViewActivitePpm> _activites = new();
+    private string _nomSocieteActive = "STRUCTURE";
+
+   
+    protected override async Task OnInitializedAsync() 
+    {
+        await LoadSocieteActive(); 
+        await LoadPtaList();
+    }
+
+    private async Task LoadPtaList() {
+        var res = await BapiService.ExecuteProcedureAsync(1, "PS1161", new object?[] { null });
+        if (res != null) _listePta = res.Select(r => new PtaItem { PTA_ID_PK = ConvertToInt(r["PTA_ID_PK"]), PTA_REFERENCE = r["PTA_REFERENCE"]?.ToString() ?? "" }).ToList();
+    }
+
+    private async Task LoadSocieteActive()
+    {
+        try 
+        {
+            
+            var res = await BapiService.ExecuteProcedureAsync(1, "PS1175", new object?[] {""});
+            if (res != null && res.Any())
+            {
+                _nomSocieteActive = res.First()["SigleSociete"]?.ToString() ?? "STRUCTURE";
+            }
+        }
+        catch (Exception ex)
+        {
+            // En cas d'erreur, on garde la valeur par défaut
+            Console.WriteLine($"Erreur chargement société : {ex.Message}");
+        }
+    }
+    private async Task OnPtaSelected(int ptaId) {
+        if (ptaId == 0) { _activites.Clear(); return; }
+        _selectedPtaId = ptaId;
+        _isLoading = true;
+        
+        try {
+            // Utilisation d'une nouvelle PS ou de la requête avec CTE pour lister les activités prêtes
+            // On filtre ici sur le statut 'PLANIFIE,A VENIR , TERMINE'
+            var res = await BapiService.ExecuteProcedureAsync(1, "PS1172", new object?[] { ptaId ,""});
+            if (res != null) {
+                _activites = res.Select(r => new ViewActivitePpm {
+                    ACT_ID_PK = ConvertToInt(r["ACT_ID_PK"]),
+                    ACT_CODE = r["ACT_CODE"]?.ToString() ?? "",
+                    ACT_DESCRIPTION = r["ACT_DESCRIPTION"]?.ToString() ?? "",
+                    TYM_LIBELLE = r["TYM_LIBELLE"]?.ToString() ?? "",
+                    MDP_LIBELLE = r["MDP_LIBELLE"]?.ToString() ?? "",
+                    ACT_MONTANT_AE_TOTAL = ConvertToDecimal(r["ACT_MONTANT_AE_TOTAL"]),
+                    ACT_STATUT = r["ACT_STATUT"]?.ToString() ?? "",
+                    HasChronogramme = ConvertToInt(r["NB_ETAPES"]) > 0
+                }).ToList();
+            }
+        } finally { _isLoading = false; }
+    }
+
+    private async Task ValiderEtGenererPPM() {
+        if (_activites.Any(a => !a.HasChronogramme)) {
+            Snackbar.Add("Certaines activités n'ont pas encore de chronogramme défini.", Severity.Error);
+            return;
+        }
+
+        _isProcessing = true;
+        try {
+            // 1. Appel de la procédure de changement de statut massif
+            // Cette PS met ACT_STATUT Ã  'PASSATION' et passe l'étape 2 (Élaboration) Ã  'TERMINE'
+            await BapiService.ExecuteProcedureAsync(1, "PS1173", new object?[] { _selectedPtaId ,""});
+
+            // 2. Génération de l'Excel ABeGIEF (Requête complexe avec Pivot)
+            await GenererExcelOfficiel();
+
+            Snackbar.Add("Plan de Passation validé et généré avec succès !", Severity.Success);
+            await OnPtaSelected(_selectedPtaId); // RafraÃ®chir la liste
+        } catch (Exception ex) {
+            Snackbar.Add($"Erreur : {ex.Message}", Severity.Error);
+        } finally { _isProcessing = false; }
+    }
+
+  private async Task GenererExcelOfficiel()
+{
+    try
+    {
+        // 1. Récupération des données via la nouvelle PS
+        var data = await BapiService.ExecuteProcedureAsync(1, "PS1174", new object?[] { _selectedPtaId,"" });
+
+        if (data == null || !data.Any())
+        {
+            Snackbar.Add("Aucune donnée Ã  exporter.", Severity.Warning);
+            return;
+        }
+
+        // 2. Création du classeur Excel
+        using (var workbook = new XLWorkbook())
+        {
+            var worksheet = workbook.Worksheets.Add("Plan de Passation");
+
+            // --- ENTÃŠTES ---
+            string[] headers = { 
+                "Code", "Désignation", "Type Marché", "Mode Passation", "Mode Exécution", 
+                "Source Financement", "Budget Estimé", "Publication Avis", "Ouverture Plis", 
+                "Evaluation Offres", "Attribution Provisoire", "Signature Contrat", "Approbation Contrat" 
+            };
+
+            for (int i = 0; i < headers.Length; i++)
+            {
+                var cell = worksheet.Cell(1, i + 1);
+                cell.Value = headers[i];
+                cell.Style.Font.Bold = true;
+                cell.Style.Fill.BackgroundColor = XLColor.FromHtml("#1c335a");
+                cell.Style.Font.FontColor = XLColor.White;
+            }
+
+            // --- DONNÉES ---
+            int row = 2;
+            foreach (var item in data)
+            {
+                worksheet.Cell(row, 1).Value = item["Code_Activite"]?.ToString();
+                worksheet.Cell(row, 2).Value = item["Designation_Prestations"]?.ToString();
+                worksheet.Cell(row, 3).Value = item["Type_Marche"]?.ToString();
+                worksheet.Cell(row, 4).Value = item["Mode_Passation"]?.ToString();
+                worksheet.Cell(row, 5).Value = item["Mode_Execution"]?.ToString();
+                worksheet.Cell(row, 6).Value = item["Source_Financement"]?.ToString();
+                worksheet.Cell(row, 7).Value = item["Budget_Estime"].ToDecimal();
+                
+                // Formatage des dates
+               worksheet.Cell(row, 8).Value = item["Publication_Avis"].ToExcelDate();
+	       worksheet.Cell(row, 9).Value = item["Ouverture_Plis"].ToExcelDate();
+	       worksheet.Cell(row, 10).Value = item["Evaluation_Offres"].ToExcelDate();
+	       worksheet.Cell(row, 11).Value = item["Attribution_Provisoire"].ToExcelDate();
+	       worksheet.Cell(row, 12).Value = item["Signature_Contrat"].ToExcelDate();
+	       worksheet.Cell(row, 13).Value = item["Approbation_Contrat"].ToExcelDate();
+                
+                row++;
+            }
+
+            worksheet.Columns().AdjustToContents();
+
+           // 3. Préparation du flux pour le téléchargement via Streaming
+		 using (var stream = new MemoryStream())
+		{
+ 		   workbook.SaveAs(stream);
+  		   stream.Position = 0; // TRÃˆS IMPORTANT : Replacer le curseur au début du flux
+   		 // On crée une référence vers le flux pour JS
+    		using var streamRef = new DotNetStreamReference(stream);   
+    		await JSRuntime.InvokeVoidAsync("downloadFileFromStream", 
+       			 $"PPM_{_nomSocieteActive}_{DateTime.Now:yyyyMMdd}.xlsx", 
+       				 streamRef);
+		}
+        }
+    }
+    catch (Exception ex)
+    {
+        Snackbar.Add($"Erreur lors de la génération Excel : {ex.Message}", Severity.Error);
+    }
+}
+
+   private int ConvertToInt(object? obj)
+{
+    if (obj == null || obj is DBNull) return 0;
+    if (obj is JsonElement element)
+    {
+        // On essaie de récupérer la valeur selon le type JSON détecté
+        if (element.ValueKind == JsonValueKind.Number && element.TryGetInt32(out var i)) return i;
+        if (element.ValueKind == JsonValueKind.String && int.TryParse(element.GetString(), out var res)) return res;
+        return 0;
+    }
+    return Convert.ToInt32(obj.ToString());
+}
+
+private decimal ConvertToDecimal(object? obj)
+{
+    if (obj == null || obj is DBNull) return 0;
+    if (obj is JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Number && element.TryGetDecimal(out var d)) return d;
+        if (element.ValueKind == JsonValueKind.String && decimal.TryParse(element.GetString(), out var res)) return res;
+        return 0;
+    }
+    return Convert.ToDecimal(obj.ToString());
+}
+
+// Nouvelle méthode indispensable pour les dates dans l'Excel
+private object ConvertToDateTimeValue(object? obj)
+{
+    if (obj == null || obj is DBNull) return "";
+    if (obj is JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.String && DateTime.TryParse(element.GetString(), out var dt)) return dt;
+        return "";
+    }
+    return DateTime.TryParse(obj.ToString(), out var res) ? res : "";
+}
+
+    public class PtaItem { public int PTA_ID_PK { get; set; } public string PTA_REFERENCE { get; set; } = ""; }
+    public class ViewActivitePpm {
+        public int ACT_ID_PK { get; set; }
+        public string ACT_CODE { get; set; } = "";
+        public string ACT_DESCRIPTION { get; set; } = "";
+        public string TYM_LIBELLE { get; set; } = "";
+        public string MDP_LIBELLE { get; set; } = "";
+        public decimal ACT_MONTANT_AE_TOTAL { get; set; }
+        public string ACT_STATUT { get; set; } = "";
+        public bool HasChronogramme { get; set; }
+    }
+}

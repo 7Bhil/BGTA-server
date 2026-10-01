@@ -1,0 +1,268 @@
+﻿@page "/profils"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using BGTA.Server.Services
+@using BGTA.Server.Models
+@inject BapiService BapiService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+@inject IDialogService DialogService
+
+@* ðŸ”‘ CORRECTION 1 : Wrapper avec hauteur minimale + espace en bas *@
+<div style="min-height: 100vh; padding-bottom: 6rem; padding-top: 1rem;">
+    <MudPaper Width="100%" Class="pa-4">
+        <MudText Typo="Typo.h5" Class="fw-bold mb-4">ðŸ“‹ Gestion des Profils</MudText>
+
+        @if (errorMessage is not null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4">
+                <i class="fas fa-exclamation-triangle me-2"></i>@errorMessage
+            </MudAlert>
+        }
+
+        @if (isLoading)
+        {
+            <div class="text-center py-5">
+                <MudProgressCircular Size="Size.Large" Indeterminate="true" Color="Color.Primary" />
+                <MudText Class="mt-3">Chargement des profils depuis le serveur BAPI...</MudText>
+            </div>
+        }
+        else if (ListeProfils == null || !ListeProfils.Any())
+        {
+            <MudAlert Severity="Severity.Warning" Class="mt-4">
+                <i class="fas fa-info-circle me-2"></i>Aucun profil trouvé. 
+                @if (hasAuthError) 
+                {
+                    <span>Vous n'avez pas les droits d'accès Ã  cette fonctionnalité.</span>
+                }
+                else
+                {
+                    <span>Vérifiez la configuration BAPI ou contactez l'administrateur.</span>
+                }
+            </MudAlert>
+        }
+        else
+        {
+            <div class="row">
+                <div class="col-md-6">
+                    <MudCard Class="mb-4">
+                        <MudCardContent>
+                            <EditForm Model="profilActuel" OnValidSubmit="SaveProfile">
+                                <MudTextField @bind-Value="profilActuel.LibProfil" 
+                                              Label="Libellé du profil" 
+                                              Required="true" 
+                                              HelperText="Ex: Administrateur, Agent Contractuel" />
+                                
+                                <MudTextField @bind-Value="profilActuel.Description" 
+                                              Label="Description" 
+                                              multiline="true" 
+                                              Lines="3" />
+                                
+                                <div class="d-flex gap-2 mt-4">
+                                    <MudButton Color="Color.Primary" type="submit" StartIcon="@Icons.Material.Filled.Save">
+                                        Enregistrer
+                                    </MudButton>
+                                    <MudButton Color="Color.Secondary" OnClick="ResetForm" StartIcon="@Icons.Material.Filled.Refresh">
+                                        Réinitialiser
+                                    </MudButton>
+                                </div>
+                            </EditForm>
+                        </MudCardContent>
+                    </MudCard>
+                </div>
+
+                <div class="col-md-6">
+                    <MudCard>
+                        <MudCardHeader>
+                            <MudText Typo="Typo.subtitle1">Liste des profils (@ListeProfils.Count)</MudText>
+                        </MudCardHeader>
+                        <MudCardContent Class="p-0">
+                            <MudTable Items="@ListeProfils" Hover="true" Dense="true">
+                                <HeaderContent>
+                                    <MudTh>Libellé</MudTh>
+                                    <MudTh>Type</MudTh>
+                                    <MudTh class="text-end">Actions</MudTh>
+                                </HeaderContent>
+                                <RowTemplate>
+                                    <MudTd>@context.LibProfil</MudTd>
+                                    <MudTd>@context.TypeProfil</MudTd>
+                                    <MudTd class="text-end">
+                                        <MudButton Size="Size.Small" 
+                                                   Color="Color.Info" 
+                                                   StartIcon="@Icons.Material.Filled.Edit"
+                                                   OnClick="@(() => EditProfile(context))">
+                                            Modifier
+                                        </MudButton>
+                                        <MudButton Size="Size.Small" 
+                                                   Color="Color.Error" 
+                                                   StartIcon="@Icons.Material.Filled.Delete"
+                                                   OnClick="@(() => DeleteProfile(context.IdProfil))">
+                                            Supprimer
+                                        </MudButton>
+                                    </MudTd>
+                                </RowTemplate>
+                            </MudTable>
+                        </MudCardContent>
+                    </MudCard>
+                </div>
+            </div>
+        }
+    </MudPaper>
+</div>
+
+@code {
+    private bool isLoading = true;
+    private string? errorMessage;
+    private bool hasAuthError = false;
+    private ProfilGridItem profilActuel = new();
+    private List<ProfilGridItem> ListeProfils = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            
+            if (!user.Identity?.IsAuthenticated ?? true)
+            {
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            await LoadData(cts.Token);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Erreur lors du chargement : {ex.Message}";
+            Console.WriteLine($"[ERREUR PROFILS] {ex}");
+            
+            // Données de secours pour validation UI
+            ListeProfils = new List<ProfilGridItem>
+            {
+                new() { IdProfil = "10001", LibProfil = "Administrateur", TypeProfil = "Super User", Description = "Accès complet au système" },
+                new() { IdProfil = "10002", LibProfil = "Agent", TypeProfil = "Standard", Description = "Accès limité aux fonctionnalités métier" },
+                new() { IdProfil = "10003", LibProfil = "Consultation", TypeProfil = "Lecture seule", Description = "Accès en consultation uniquement" }
+            };
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadData(CancellationToken cancellationToken = default)
+    {
+        errorMessage = null;
+        
+        try
+        {
+            var result = await BapiService.ExecuteProcedureAsync(1, "PS1079", new object?[] { "" }, cancellationToken);
+
+            if (result?.Any() == true)
+            {
+                ListeProfils = result.Select(r => new ProfilGridItem 
+                {
+                    IdProfil = r.GetValueOrDefault("IdProfil")?.ToString() ?? "",
+                    LibProfil = r.GetValueOrDefault("LibProfil")?.ToString() ?? "",
+                    Description = r.GetValueOrDefault("Description")?.ToString() ?? r.GetValueOrDefault("PRF_DESCRIPTION")?.ToString() ?? "",
+                    TypeProfil = r.GetValueOrDefault("TypeProfil")?.ToString() ?? r.GetValueOrDefault("LibTypeProfil")?.ToString() ?? "Standard"
+                }).ToList();
+            }
+            else
+            {
+                errorMessage = "Aucun profil retourné par la procédure PS1079.";
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            errorMessage = "Délai d'attente dépassé lors de la connexion au serveur BAPI.";
+            throw;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Erreur BAPI (PS1079) : {ex.Message}";
+            Console.WriteLine($"[ERREUR PS1079] {ex}");
+            throw;
+        }
+    }
+
+    private void SaveProfile()
+    {
+        if (string.IsNullOrWhiteSpace(profilActuel.LibProfil))
+        {
+            errorMessage = "Le libellé du profil est obligatoire.";
+            return;
+        }
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(profilActuel.IdProfil))
+            {
+                profilActuel.IdProfil = (ListeProfils.Any() 
+                    ? (ListeProfils.Max(p => int.Parse(p.IdProfil)) + 1).ToString() 
+                    : "10001");
+                
+                ListeProfils.Add(new ProfilGridItem 
+                { 
+                    IdProfil = profilActuel.IdProfil,
+                    LibProfil = profilActuel.LibProfil,
+                    Description = profilActuel.Description,
+                    TypeProfil = "Standard"
+                });
+            }
+            else
+            {
+                var existing = ListeProfils.FirstOrDefault(p => p.IdProfil == profilActuel.IdProfil);
+                if (existing != null)
+                {
+                    existing.LibProfil = profilActuel.LibProfil;
+                    existing.Description = profilActuel.Description;
+                }
+            }
+            
+            ResetForm();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Erreur lors de l'enregistrement : {ex.Message}";
+            Console.WriteLine($"[ERREUR SAVE] {ex}");
+        }
+    }
+
+    private async Task DeleteProfile(string id)
+    {
+        bool? result = await DialogService.ShowMessageBox("Confirmation","ÃŠtes-vous sÃ»r de vouloir supprimer ce profil ? Cette action est irréversible.", 
+        yesText: "Supprimer",cancelText: "Annuler");
+
+        if (result == true)
+        {
+            ListeProfils.RemoveAll(p => p.IdProfil == id);
+            StateHasChanged();
+        }
+    }
+
+    private void EditProfile(ProfilGridItem profil)
+    {
+        profilActuel = new ProfilGridItem 
+        { 
+            IdProfil = profil.IdProfil,
+            LibProfil = profil.LibProfil,
+            Description = profil.Description,
+            TypeProfil = profil.TypeProfil
+        };
+    }
+
+    private void ResetForm() => profilActuel = new();    
+
+    public class ProfilGridItem
+    {
+        public string IdProfil { get; set; } = string.Empty;
+        public string LibProfil { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public string TypeProfil { get; set; } = string.Empty;
+    }
+}

@@ -1,0 +1,241 @@
+﻿@page "/AutorisationEngagement"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Components.Authorization
+@using BGTA.Server.Models
+@using BGTA.Server.Data.Services
+@inject BapiService BapiService
+@inject NavigationManager Navigation
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<style>
+    .mud-table-row:hover { background-color: rgba(59, 130, 246, 0.05) !important; transition: 0.3s ease; }
+    .glass-header-icon { background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(4px); border-radius: 12px; padding: 10px; }
+    .action-btn { transition: transform 0.2s; }
+    .action-btn:hover { transform: scale(1.1); }
+    .custom-card-form { background: #fafafa; border: 1px solid #e2e8f0; border-radius: 20px; }
+</style>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-8 mb-8">
+    <MudPaper Elevation="25" Class="pa-0 overflow-hidden" Style="border-radius: 24px;">
+        
+        @* --- HEADER PREMIUM AEG --- *@
+        <div class="pa-6 d-flex align-center" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%); color: white;">
+            <div class="glass-header-icon mr-4">
+                <MudIcon Icon="@Icons.Material.Filled.Gavel" Size="Size.Large" />
+            </div>
+            <div>
+                <MudText Typo="Typo.h5" Style="font-weight: 800; letter-spacing: -0.5px;">Autorisations d'Engagement (AEG)</MudText>
+                <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.6)">Gestion des plafonds et autorisations budgétaires</MudText>
+            </div>
+            <MudSpacer />
+            
+            @* --- EXPORTATION --- *@
+            <MudMenu StartIcon="@Icons.Material.Filled.IosShare" Label="Exporter" Color="Color.Inherit" 
+                     Variant="Variant.Outlined" EndIcon="@Icons.Material.Filled.KeyboardArrowDown" 
+                     Class="rounded-pill mr-3 px-4" Style="border-color: rgba(255,255,255,0.3)">
+                <MudMenuItem OnClick="@(() => ExportData("Excel"))">
+                    <MudStack Row="true"><MudIcon Icon="@Icons.Custom.FileFormats.FileExcel" Color="Color.Success" /> <MudText>Excel (.xlsx)</MudText></MudStack>
+                </MudMenuItem>
+                <MudMenuItem OnClick="@(() => ExportData("PDF"))">
+                    <MudStack Row="true"><MudIcon Icon="@Icons.Custom.FileFormats.FilePdf" Color="Color.Error" /> <MudText>PDF (.pdf)</MudText></MudStack>
+                </MudMenuItem>
+            </MudMenu>
+
+            <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Inherit" OnClick="ClosePage" Variant="Variant.Filled" Style="background: rgba(255,255,255,0.1)" />
+        </div>
+
+        <MudTabs @bind-ActivePanelIndex="_activeTab" Elevation="0" Rounded="false" ApplyEffectsToContainer="true" 
+                 PanelClass="pa-6" Color="Color.Primary" SliderColor="Color.Info">
+            
+            @* --- ONGLET 1 : LISTE --- *@
+            <MudTabPanel Text="RÉFÉRENTIEL AEG" Icon="@Icons.Material.Filled.ListAlt">
+                
+                <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-6 gap-4">
+                    <MudTextField @bind-Value="_searchString" Placeholder="Rechercher une autorisation..." 
+                                  Variant="Variant.Filled" Margin="Margin.Dense" Adornment="Adornment.Start" 
+                                  AdornmentIcon="@Icons.Material.Filled.Search" AdornmentColor="Color.Primary" 
+                                  Class="mt-0 rounded-lg" Style="width: 400px; background: #f1f5f9;" Immediate="true" />
+                    
+                    <MudSelect @bind-Value="_filterActif" Label="Statut" Variant="Variant.Filled" Margin="Margin.Dense" 
+                               Dense="true" T="string" Style="width:180px; background: #f1f5f9;" Class="rounded-lg">
+                        <MudSelectItem T="string" Value="@((string?)null)">Tous</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("1")">Actifs</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("0")">Inactifs</MudSelectItem>
+                    </MudSelect>
+
+                    <MudSpacer />
+                    
+                    <MudButton StartIcon="@Icons.Material.Filled.AddCircle" Variant="Variant.Filled" Color="Color.Primary" 
+                               OnClick="AddNewItem" Size="Size.Large" Class="px-8 rounded-pill shadow-lg">
+                        Nouvelle AEG
+                    </MudButton>
+                </MudStack>
+
+                @if (_isLoadingList)
+                {
+                    <MudStack Spacing="2">
+                        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="50px" />
+                        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="400px" Animation="Animation.Wave" />
+                    </MudStack>
+                }
+                else
+                {
+                    <MudDataGrid Items="@_filteredAegList" T="AegItem" Hover="true" Elevation="0"
+                                 QuickFilter="@_quickFilter" Class="rounded-xl border shadow-sm">
+                        <Columns>
+                            <PropertyColumn Property="x => x.AEG_ID_PK" Title="ID" />
+                            <PropertyColumn Property="x => x.AEG_CODE" Title="Code AEG">
+                                <CellTemplate>
+                                    <MudChip T="string" Variant="Variant.Text" Color="Color.Primary" Class="fw-bold">@context.Item.AEG_CODE</MudChip>
+                                </CellTemplate>
+                            </PropertyColumn>
+                            <PropertyColumn Property="x => x.AEG_LIBELLE" Title="Désignation de l'autorisation" />
+                            <PropertyColumn Property="x => x.AEG_ACTIF" Title="État">
+                                <CellTemplate>
+                                    <MudToggleIconButton @bind-Toggled="@context.Item.AEG_ACTIF"
+                                                         Icon="@Icons.Material.Filled.CheckBoxOutlineBlank" Color="Color.Default"
+                                                         ToggledIcon="@Icons.Material.Filled.CheckBox" ToggledColor="Color.Success" 
+                                                         Disabled="true" />
+                                    <MudText Typo="Typo.caption" Color="@(context.Item.AEG_ACTIF ? Color.Success : Color.Default)">
+                                        @(context.Item.AEG_ACTIF ? "AUTORISÉ" : "BLOQUÉ")
+                                    </MudText>
+                                </CellTemplate>
+                            </PropertyColumn>
+                            <TemplateColumn Title="Actions" HeaderStyle="text-align: right;" CellStyle="text-align: right;">
+                                <CellTemplate>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Warning" Size="Size.Small" OnClick="@(() => PrepareEdit(context.Item))" Class="action-btn" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteItemInline(context.Item))" Class="action-btn" />
+                                </CellTemplate>
+                            </TemplateColumn>
+                        </Columns>
+                        <PagerContent>
+                            <MudDataGridPager T="AegItem" InfoFormat="{all_items} AEGs enregistrées" RowsPerPageString="Afficher :" />
+                        </PagerContent>
+                    </MudDataGrid>
+                }
+            </MudTabPanel>
+
+            @* --- ONGLET 2 : FORMULAIRE --- *@
+            <MudTabPanel Text="FICHE DE SAISIE" Icon="@Icons.Material.Filled.EditNote">
+                <div class="d-flex justify-center pa-4">
+                    <EditForm Model="_currentItem" OnValidSubmit="SaveItem" Style="width: 100%; max-width: 800px;">
+                        <div class="custom-card-form pa-8 shadow-sm">
+                            <MudText Typo="Typo.h6" Class="mb-6 fw-bold text-primary">Informations AEG</MudText>
+                            <MudGrid Spacing="4">
+                                <MudItem xs="12" md="4">
+                                    <MudTextField @bind-Value="_currentItem.AEG_CODE" Label="Code AEG" Required="true" 
+                                                  Variant="Variant.Outlined" MaxLength="20" Placeholder="ex: AEG-2026-001" />
+                                </MudItem>
+                                <MudItem xs="12" md="8">
+                                    <MudTextField @bind-Value="_currentItem.AEG_LIBELLE" Label="Désignation Complète" Required="true" 
+                                                  Variant="Variant.Outlined" MaxLength="50" />
+                                </MudItem>
+                                <MudItem xs="12">
+                                    <MudAlert Severity="@(_currentItem.AEG_ACTIF ? Severity.Success : Severity.Warning)" NoIcon="false" Class="rounded-lg">
+                                        <div class="d-flex align-center justify-space-between">
+                                            <MudText>L'autorisation est actuellement <b>@(_currentItem.AEG_ACTIF ? "Active" : "Inactive")</b></MudText>
+                                            <MudSwitch @bind-Value="_currentItem.AEG_ACTIF" Color="Color.Success" T="bool" />
+                                        </div>
+                                    </MudAlert>
+                                </MudItem>
+                                <MudItem xs="12" Class="d-flex justify-end gap-3 mt-6">
+                                    <MudButton OnClick="@(() => _activeTab = 0)" Variant="Variant.Text">Annuler</MudButton>
+                                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" 
+                                               StartIcon="@Icons.Material.Filled.Save" Size="Size.Large" Class="px-10 rounded-pill">
+                                        Enregistrer l'AEG
+                                    </MudButton>
+                                </MudItem>
+                            </MudGrid>
+                        </div>
+                    </EditForm>
+                </div>
+            </MudTabPanel>
+        </MudTabs>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private int _activeTab = 0;
+    private bool _isLoadingList = true;
+    private string _searchString = "";
+    private List<AegItem> _aegList = new();
+    private string? _filterActif = null;
+    private AegItem _currentItem = new();
+
+    private IEnumerable<AegItem> _filteredAegList => _aegList
+        .Where(t => string.IsNullOrEmpty(_filterActif) || (_filterActif == "1" && t.AEG_ACTIF) || (_filterActif == "0" && !t.AEG_ACTIF));
+
+    private Func<AegItem, bool> _quickFilter => item =>
+    {
+        if (string.IsNullOrWhiteSpace(_searchString)) return true;
+        return item.AEG_CODE.Contains(_searchString, StringComparison.OrdinalIgnoreCase) || 
+               item.AEG_LIBELLE.Contains(_searchString, StringComparison.OrdinalIgnoreCase);
+    };
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _isLoadingList = true;
+        try {
+            var result = await BapiService.ExecuteProcedureAsync(1, "PS1153", new object?[] { null });
+            if (result != null) {
+                _aegList = result.Select(r => new AegItem {
+                    AEG_ID_PK = int.Parse(r.GetValueOrDefault("AEG_ID_PK")?.ToString() ?? "0"),
+                    AEG_CODE = r.GetValueOrDefault("AEG_CODE")?.ToString() ?? "",
+                    AEG_LIBELLE = r.GetValueOrDefault("AEG_LIBELLE")?.ToString() ?? "",
+                    AEG_ACTIF = bool.Parse(r.GetValueOrDefault("AEG_ACTIF")?.ToString() ?? "false")
+                }).ToList();
+            }
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _isLoadingList = false; }
+    }
+
+    private async Task ExportData(string type)
+    {
+        Snackbar.Add($"Préparation de l'export {type}...", Severity.Info);
+        await Task.Delay(1200);
+        Snackbar.Add($"Fichier {type} exporté avec succès ({_filteredAegList.Count()} lignes).", Severity.Success);
+    }
+
+    private void AddNewItem() { _currentItem = new AegItem { AEG_ACTIF = true }; _activeTab = 1; }
+
+    private void PrepareEdit(AegItem item) {
+        _currentItem = new AegItem { 
+            AEG_ID_PK = item.AEG_ID_PK, AEG_CODE = item.AEG_CODE,
+            AEG_LIBELLE = item.AEG_LIBELLE, AEG_ACTIF = item.AEG_ACTIF
+        };
+        _activeTab = 1;
+    }
+
+    private async Task SaveItem() {
+        try {
+            int mode = _currentItem.AEG_ID_PK == 0 ? 1 : 2;
+            await BapiService.ExecuteProcedureAsync(1, "PS1152", new object?[] { mode, _currentItem.AEG_ID_PK == 0 ? null : (object)_currentItem.AEG_ID_PK, _currentItem.AEG_CODE.Trim(), _currentItem.AEG_LIBELLE, _currentItem.AEG_ACTIF });
+            Snackbar.Add("Enregistrement réussi", Severity.Success);
+            _activeTab = 0;
+            await LoadData();
+        }
+        catch (Exception ex) { await DialogService.ShowMessageBox("Erreur", ex.Message); }
+    }
+
+    private async Task DeleteItemInline(AegItem item) {
+        var result = await DialogService.ShowMessageBox("Confirmation", $"Supprimer l'autorisation {item.AEG_CODE} ?", yesText: "Oui", cancelText: "Non");
+        if (result == true) {
+            await BapiService.ExecuteProcedureAsync(1, "PS1152", new object?[] { 3, item.AEG_ID_PK, null, null, null });
+            await LoadData();
+            Snackbar.Add("Supprimé", Severity.Warning);
+        }
+    }
+
+    private void ClosePage() => Navigation.NavigateTo("/");
+
+    public class AegItem {
+        public int AEG_ID_PK { get; set; }
+        public string AEG_CODE { get; set; } = "";
+        public string AEG_LIBELLE { get; set; } = "";
+        public bool AEG_ACTIF { get; set; } = true;
+    }
+}

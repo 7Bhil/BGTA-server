@@ -1,0 +1,635 @@
+﻿@page "/Activite"
+@attribute [Authorize]
+
+@using Microsoft.AspNetCore.Components.Authorization
+@using BGTA.Server.Models
+@using BGTA.Server.Data.Services
+
+@inject BapiService BapiService
+@inject NavigationManager NavigationManager
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<style>
+    .mud-table-row:hover {
+        background-color: rgba(59, 130, 246, 0.05) !important;
+        transition: 0.3s ease;
+    }
+
+    .glass-header-icon {
+        background: rgba(255, 255, 255, 0.15);
+        backdrop-filter: blur(4px);
+        border-radius: 12px;
+        padding: 10px;
+    }
+
+    .action-btn {
+        transition: transform 0.2s;
+    }
+
+        .action-btn:hover {
+            transform: scale(1.1);
+        }
+
+    .custom-card-form {
+        background: #fafafa;
+        border: 1px solid #e2e8f0;
+        border-radius: 20px;
+    }
+
+    .id-badge {
+        background: #f1f5f9;
+        color: #64748b;
+        font-family: monospace;
+        font-weight: bold;
+        border-radius: 6px;
+        padding: 2px 8px;
+        border: 1px solid #e2e8f0;
+    }
+</style>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-8 mb-8">
+
+    <MudPaper Elevation="25"
+              Class="pa-0 overflow-hidden"
+              Style="border-radius: 24px;">
+
+        <!-- HEADER -->
+        <div style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+                    padding: 28px 32px;
+                    color: white;">
+
+            <div class="d-flex align-center justify-space-between">
+
+                <div class="d-flex align-center">
+
+                    <div class="glass-header-icon mr-4">
+                        <MudIcon Icon="@Icons.Material.Filled.DirectionsRun"
+                                 Size="Size.Large"
+                                 Color="Color.Inherit" />
+                    </div>
+
+                    <div>
+                        <MudText Typo="Typo.h5"
+                                 Style="font-weight:700;">
+                            Activités (ACT)
+                        </MudText>
+
+                        <MudText Typo="Typo.body2"
+                                 Style="opacity:0.75;">
+                            Configuration des activités
+                        </MudText>
+                    </div>
+
+                </div>
+
+                <div class="d-flex align-center">
+
+                    <MudMenu Icon="@Icons.Material.Filled.FileDownload"
+                             Color="Color.Inherit"
+                             AnchorOrigin="Origin.BottomRight"
+                             TransformOrigin="Origin.TopRight">
+
+                        <MudMenuItem OnClick="@(() => ExportData("Excel"))">
+                            <MudIcon Icon="@Icons.Material.Filled.TableChart"
+                                     Class="mr-2" />
+                            Export Excel
+                        </MudMenuItem>
+
+                        <MudMenuItem OnClick="@(() => ExportData("PDF"))">
+                            <MudIcon Icon="@Icons.Material.Filled.PictureAsPdf"
+                                     Class="mr-2" />
+                            Export PDF
+                        </MudMenuItem>
+
+                    </MudMenu>
+
+                    <MudIconButton Icon="@Icons.Material.Filled.Close"
+                                   Color="Color.Inherit"
+                                   OnClick="ClosePage"
+                                   Class="ml-2" />
+
+                </div>
+
+            </div>
+        </div>
+
+        <!-- TABS -->
+        <MudTabs @bind-ActivePanelIndex="_activeTab"
+                 Rounded="true"
+                 Elevation="0"
+                 PanelClass="pa-6">
+
+            <!-- LISTE -->
+            <MudTabPanel Text="RÉFÉRENTIEL ACTIVITÉS"
+                         Icon="@Icons.Material.Filled.List">
+
+                <div class="d-flex align-center mb-4">
+
+                    <MudTextField @bind-Value="_searchString"
+                                  Placeholder="Rechercher une activité..."
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  Class="mr-4"
+                                  Style="max-width:350px;" />
+
+                    <MudSelect T="bool?"
+                               @bind-Value="_filterActif"
+                               Label="Statut"
+                               Variant="Variant.Outlined"
+                               Margin="Margin.Dense"
+                               Style="max-width:220px;">
+
+                        <MudSelectItem T="bool?" Value="@((bool?)null)">
+                            Tous les statuts
+                        </MudSelectItem>
+
+                        <MudSelectItem T="bool?" Value="@((bool?)true)">
+                            Actifs uniquement
+                        </MudSelectItem>
+
+                        <MudSelectItem T="bool?" Value="@((bool?)false)">
+                            Inactifs uniquement
+                        </MudSelectItem>
+
+                    </MudSelect>
+
+                    <MudSpacer />
+
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="AddNewItem">
+                        Nouvelle activité
+                    </MudButton>
+
+                </div>
+
+                @if (_isLoadingList)
+                {
+                    <MudProgressLinear Color="Color.Primary"
+                                       Indeterminate="true"
+                                       Class="mb-4" />
+                }
+
+                <MudDataGrid T="ActiviteItem"
+                             Items="@_items"
+                             Hover="true"
+                             Elevation="0"
+                             QuickFilter="@QuickFilter"
+                             Dense="false"
+                             Striped="false"
+                             Bordered="true"
+                             Class="rounded-lg shadow-sm">
+
+                    <Columns>
+
+                        <PropertyColumn Property="x => x.IdACT_PK"
+                                        Title="ID"
+                                        Sortable="true"
+                                        Filterable="false">
+
+                            <CellTemplate>
+                                <span class="id-badge">
+                                    @context.Item.IdACT_PK
+                                </span>
+                            </CellTemplate>
+
+                        </PropertyColumn>
+
+                        <PropertyColumn Property="x => x.CodeACT"
+                                        Title="Code"
+                                        Sortable="true">
+
+                            <CellTemplate>
+                                <MudChip T="string"
+                                         Color="Color.Primary"
+                                         Variant="Variant.Outlined"
+                                         Size="Size.Small">
+                                    @context.Item.CodeACT
+                                </MudChip>
+                            </CellTemplate>
+
+                        </PropertyColumn>
+
+                        <PropertyColumn Property="x => x.LibACT"
+                                        Title="Libellé"
+                                        Sortable="true" />
+
+                        <PropertyColumn Property="x => x.IdMIS_FK"
+                                        Title="Mission"
+                                        Sortable="true" />
+
+                        <PropertyColumn Property="x => x.Actif"
+                                        Title="Statut"
+                                        Sortable="true">
+
+                            <CellTemplate>
+                                @if (context.Item.Actif)
+                                {
+                                    <MudChip T="string"
+                                             Color="Color.Success"
+                                             Size="Size.Small">
+                                        Actif
+                                    </MudChip>
+                                }
+                                else
+                                {
+                                    <MudChip T="string"
+                                             Color="Color.Default"
+                                             Size="Size.Small">
+                                        Inactif
+                                    </MudChip>
+                                }
+                            </CellTemplate>
+
+                        </PropertyColumn>
+
+                        <PropertyColumn Property="x => x.DateCreation"
+                                        Title="Création"
+                                        Sortable="true">
+
+                            <CellTemplate>
+                                @context.Item.DateCreation.ToString("dd/MM/yyyy HH:mm")
+                            </CellTemplate>
+
+                        </PropertyColumn>
+
+                        <TemplateColumn Title="Actions"
+                                        Sortable="false"
+                                        Filterable="false">
+
+                            <CellTemplate>
+
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                               Color="Color.Warning"
+                                               Size="Size.Small"
+                                               Class="action-btn"
+                                               OnClick="@(() => PrepareEdit(context.Item))" />
+
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                               Color="Color.Error"
+                                               Size="Size.Small"
+                                               Class="action-btn"
+                                               OnClick="@(() => DeleteItemInline(context.Item))" />
+
+                            </CellTemplate>
+
+                        </TemplateColumn>
+
+                    </Columns>
+
+                    <PagerContent>
+                        <MudDataGridPager T="ActiviteItem" />
+                    </PagerContent>
+
+                </MudDataGrid>
+
+            </MudTabPanel>
+
+            <!-- FORMULAIRE -->
+            <MudTabPanel Text="FORMULAIRE"
+                         Icon="@Icons.Material.Filled.Edit">
+
+                <div class="d-flex justify-center">
+
+                    <EditForm Model="@_currentItem"
+                              OnValidSubmit="SaveItem">
+
+                        <DataAnnotationsValidator />
+
+                        <MudCard Class="custom-card-form pa-6"
+                                 Style="max-width:700px; width:100%;">
+
+                            <MudCardHeader>
+
+                                <MudText Typo="Typo.h6"
+                                         Style="font-weight:700;">
+                                    @(_currentItem.IdACT_PK == 0
+                                                                        ? "Nouvelle activité"
+                                                                        : "Modifier l'activité")
+                                </MudText>
+
+                            </MudCardHeader>
+
+                            <MudCardContent>
+
+                                <MudGrid>
+
+                                    <MudItem xs="12" sm="6">
+
+                                        <MudNumericField T="long"
+                                                         @bind-Value="_currentItem.IdACT_PK"
+                                                         Label="ID Activité"
+                                                         Variant="Variant.Outlined"
+                                                         Required="true"
+                                                         Min="1" />
+
+                                    </MudItem>
+
+                                    <MudItem xs="12" sm="6">
+
+                                        <MudNumericField T="int"
+                                                         @bind-Value="_currentItem.IdMIS_FK"
+                                                         Label="ID Mission"
+                                                         Variant="Variant.Outlined"
+                                                         Required="true"
+                                                         Min="1" />
+
+                                    </MudItem>
+
+                                    <MudItem xs="12" sm="6">
+
+                                        <MudTextField @bind-Value="_currentItem.CodeACT"
+                                                      Label="Code Activité"
+                                                      Variant="Variant.Outlined"
+                                                      Required="true"
+                                                      MaxLength="20"
+                                                      Counter="20" />
+
+                                    </MudItem>
+
+                                    <MudItem xs="12" sm="6">
+
+                                        <MudTextField @bind-Value="_currentItem.LibACT"
+                                                      Label="Libellé de l'Activité"
+                                                      Variant="Variant.Outlined"
+                                                      Required="true"
+                                                      MaxLength="100"
+                                                      Counter="100" />
+
+                                    </MudItem>
+
+                                    <MudItem xs="12">
+
+                                        <MudSwitch @bind-Value="_currentItem.Actif"
+                                                   Color="Color.Success"
+                                                   Label="Activité active" />
+
+                                    </MudItem>
+
+                                </MudGrid>
+
+                            </MudCardContent>
+
+                            <MudCardActions Class="justify-end pa-4">
+
+                                <MudButton Variant="Variant.Outlined"
+                                           Color="Color.Default"
+                                           OnClick="CancelEdit"
+                                           Class="mr-2">
+                                    Annuler
+                                </MudButton>
+
+                                <MudButton Variant="Variant.Filled"
+                                           Color="Color.Primary"
+                                           ButtonType="ButtonType.Submit"
+                                           StartIcon="@Icons.Material.Filled.Save">
+                                    Enregistrer
+                                </MudButton>
+
+                            </MudCardActions>
+
+                        </MudCard>
+
+                    </EditForm>
+
+                </div>
+
+            </MudTabPanel>
+
+        </MudTabs>
+
+    </MudPaper>
+
+</MudContainer>
+
+@code {
+
+    private int _activeTab = 0;
+    private bool _isLoadingList = false;
+    private string _searchString = string.Empty;
+    private bool? _filterActif = null;
+
+    private List<ActiviteItem> _items = new();
+    private ActiviteItem _currentItem = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _isLoadingList = true;
+
+        try
+        {
+            var result = await BapiService.ExecuteProcedureAsync(
+                1,
+                "PS1237",
+                new object?[] { null });
+
+            _items = result
+                .Select(x => new ActiviteItem
+                {
+                    IdACT_PK = Convert.ToInt64(x["IdACT_PK"]),
+                    IdMIS_FK = Convert.ToInt32(x["IdMIS_FK"]),
+                    CodeACT = x["CodeACT"]?.ToString() ?? string.Empty,
+                    LibACT = x["LibACT"]?.ToString() ?? string.Empty,
+                    DateCreation = Convert.ToDateTime(x["DateCreation"]),
+                    DateModification = x["DateModification"] == null
+                        ? null
+                        : Convert.ToDateTime(x["DateModification"]),
+                    Actif = Convert.ToBoolean(x["Actif"])
+                })
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(
+                $"Erreur lors du chargement : {ex.Message}",
+                Severity.Error);
+        }
+        finally
+        {
+            _isLoadingList = false;
+        }
+    }
+
+    private Func<ActiviteItem, bool> QuickFilter => x =>
+    {
+        if (_filterActif.HasValue &&
+            x.Actif != _filterActif.Value)
+            return false;
+
+        if (string.IsNullOrWhiteSpace(_searchString))
+            return true;
+
+        return
+            x.CodeACT.Contains(
+                _searchString,
+                StringComparison.OrdinalIgnoreCase)
+            ||
+            x.LibACT.Contains(
+                _searchString,
+                StringComparison.OrdinalIgnoreCase)
+            ||
+            x.IdACT_PK.ToString().Contains(_searchString)
+            ||
+            x.IdMIS_FK.ToString().Contains(_searchString);
+    };
+
+    private void AddNewItem()
+    {
+        _currentItem = new ActiviteItem
+        {
+            Actif = true,
+            DateCreation = DateTime.Now
+        };
+
+        _activeTab = 1;
+    }
+
+    private void PrepareEdit(ActiviteItem item)
+    {
+        _currentItem = new ActiviteItem
+        {
+            IdACT_PK = item.IdACT_PK,
+            IdMIS_FK = item.IdMIS_FK,
+            CodeACT = item.CodeACT,
+            LibACT = item.LibACT,
+            DateCreation = item.DateCreation,
+            DateModification = item.DateModification,
+            Actif = item.Actif
+        };
+
+        _activeTab = 1;
+    }
+
+    private async Task SaveItem()
+    {
+        try
+        {
+            int mode = _currentItem.IdACT_PK == 0 ? 1 : 2;
+
+            if (mode == 1)
+                _currentItem.DateCreation = DateTime.Now;
+            else
+                _currentItem.DateModification = DateTime.Now;
+
+            await BapiService.ExecuteProcedureAsync(
+                mode,
+                "PS1230",
+                new object?[]
+                {
+                    mode,
+                    _currentItem.IdACT_PK,
+                    _currentItem.IdMIS_FK,
+                    _currentItem.CodeACT,
+                    _currentItem.LibACT,
+                    _currentItem.DateCreation,
+                    _currentItem.DateModification,
+                    _currentItem.Actif,
+                    null
+                });
+
+            Snackbar.Add(
+                mode == 1
+                    ? "Activité ajoutée avec succès."
+                    : "Activité modifiée avec succès.",
+                Severity.Success);
+
+            await LoadData();
+
+            _activeTab = 0;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(
+                $"Erreur : {ex.Message}",
+                Severity.Error);
+        }
+    }
+
+    private async Task DeleteItemInline(ActiviteItem item)
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Confirmation",
+            $"Voulez-vous vraiment supprimer l'activité « {item.LibACT} » ?",
+            yesText: "Supprimer",
+            cancelText: "Annuler");
+
+        if (confirmed != true)
+            return;
+
+        try
+        {
+            await BapiService.ExecuteProcedureAsync(
+                3,
+                "PS1230",
+                new object?[]
+                {
+                    3,
+                    item.IdACT_PK,
+                    item.IdMIS_FK,
+                    item.CodeACT,
+                    item.LibACT,
+                    item.DateCreation,
+                    item.DateModification,
+                    item.Actif,
+                    null
+                });
+
+            Snackbar.Add(
+                "Activité supprimée avec succès.",
+                Severity.Success);
+
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(
+                $"Erreur lors de la suppression : {ex.Message}",
+                Severity.Error);
+        }
+    }
+
+    private void CancelEdit()
+    {
+        _activeTab = 0;
+    }
+
+    private async Task ExportData(string format)
+    {
+        Snackbar.Add(
+            $"Export {format} en préparation...",
+            Severity.Info);
+
+        await Task.Delay(500);
+    }
+
+    private void ClosePage()
+    {
+        NavigationManager.NavigateTo("/");
+    }
+
+    public class ActiviteItem
+    {
+        public long IdACT_PK { get; set; }
+
+        public int IdMIS_FK { get; set; }
+
+        public string CodeACT { get; set; } = string.Empty;
+
+        public string LibACT { get; set; } = string.Empty;
+
+        public DateTime DateCreation { get; set; }
+
+        public DateTime? DateModification { get; set; }
+
+        public bool Actif { get; set; }
+    }
+}

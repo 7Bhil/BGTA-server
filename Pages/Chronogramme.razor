@@ -1,0 +1,355 @@
+﻿@page "/Chronogramme"
+@attribute [Authorize]
+@using BGTA.Server.Models
+@using BGTA.Server.Data.Services
+@using BGTA.Server.Components.Dialogs
+@using System.Text.Json
+@using ClosedXML.Excel
+@using Microsoft.JSInterop
+@using System.IO
+@inject BapiService BapiService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@inject IDialogService DialogService
+
+<style>
+    .ae-header { background-color: #1c335a !important; color: white !important; border-bottom: 4px solid #f9a825 !important; }
+    .ae-card { border: 1px solid #e0e0e0; border-left: 5px solid #f9a825; }
+    .chrono-cell { min-width: 65px; text-align: center; border: 1px solid #e0e0e0; padding: 0 !important; height: 50px; position: relative; }
+    .chrono-estimated { background-color: #2e7d32 !important; color: white !important; } 
+    .chrono-manual { background-color: #1976d2 !important; color: white !important; }    
+    .cursor-pointer { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; }
+    .day-badge { font-size: 0.65rem; font-weight: bold; background: rgba(0,0,0,0.4); color: white; padding: 1px 3px; border-radius: 3px; margin: 1px; }
+    .etape-row { background-color: #f9f9f9 !important; font-size: 0.8rem; }
+</style>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <MudPaper Elevation="4">
+        <div class="d-flex align-center justify-space-between pa-4 ae-header">
+            <div class="d-flex align-center">
+                <MudIcon Icon="@Icons.Material.Filled.DateRange" Class="mr-3" Style="font-size: 2rem;" />
+                <MudText Typo="Typo.h5" Class="fw-bold">CHRONOGRAMME & GESTION DES MARCHÉS</MudText>
+            </div>
+            <div class="d-flex">
+                <MudButton Variant="Variant.Filled" Color="Color.Info" StartIcon="@Icons.Material.Filled.Download" OnClick="ExporterExcel" Class="mr-2">Exporter Excel</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="@(() => Navigation.NavigateTo("/"))">Fermer</MudButton>
+            </div>
+        </div>
+
+        <div class="pa-4">
+            <MudPaper Class="pa-4 mb-4 ae-card" Elevation="0">
+                <MudSelect T="int" Label="Sélectionner le PTA" Value="@_selectedPtaId" ValueChanged="OnPtaSelected" Variant="Variant.Outlined" Dense="true">
+                    <MudSelectItem Value="0">-- Choisir un PTA --</MudSelectItem>
+                    @foreach (var pta in _listePta) { <MudSelectItem Value="@pta.PTA_ID_PK">@pta.PTA_REFERENCE</MudSelectItem> }
+                </MudSelect>
+            </MudPaper>
+
+            @if (_isLoading) { <MudProgressLinear Color="Color.Primary" Indeterminate="true" /> }
+            else if (_activites.Any())
+            {
+                <MudTable Items="@_activites" Dense="true" Bordered="true" FixedHeader="true" Height="600px" HorizontalScrollbar="true" Hover="true">
+                    <HeaderContent>
+                        <MudTh Style="width:50px"></MudTh>
+                        <MudTh Style="min-width:350px; position: sticky; left: 0; background: white; z-index: 10;">Activités / Étapes du Workflow</MudTh>
+                        @foreach (var m in _moisNoms) { <MudTh Class="chrono-cell">@m</MudTh> }
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>
+                            <MudIconButton Icon="@(context.ShowDetails ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)" 
+                                           OnClick="@(() => context.ShowDetails = !context.ShowDetails)" Size="Size.Small" />
+                        </MudTd>
+                        <MudTd Style="position: sticky; left: 0; background: white; z-index: 5; border-right: 2px solid #e0e0e0;">
+                            <div class="d-flex justify-space-between align-center">
+                                <div>
+                                    <MudText Typo="Typo.body2" Class="fw-bold">@context.ACT_CODE</MudText>
+                                    <MudText Typo="Typo.caption" Style="display:block; line-height:1.2">@context.ACT_DESCRIPTION</MudText>
+                                </div>
+                                 @*
+                                <MudTooltip Text="Données de base du Plan de Passation">
+                                    <MudIconButton Icon="@Icons.Material.Filled.EditNote" Color="Color.Primary" Size="Size.Small" 
+                                                   OnClick="@(() => OpenActDetails(context))" />
+                                </MudTooltip>
+                                *@
+                            </div>
+                        </MudTd>
+                        @for (int i = 1; i <= 12; i++)
+                        {
+                            int month = i;
+                            <MudTd Class="@GetMonthClass(context, month)">
+                                <MudMenu AnchorOrigin="Origin.BottomCenter" TransformOrigin="Origin.TopCenter" Dense="true">
+                                    <ActivatorContent>
+                                        <div class="cursor-pointer">
+                                            @if (context.DateDebut?.Month == month) { <span class="day-badge">D: @context.DateDebut?.Day</span> }
+                                            @if (IsMonthInRange(context, month)) { <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Small" /> }
+                                            @if (context.DateFin?.Month == month) { <span class="day-badge">F: @context.DateFin?.Day</span> }
+                                        </div>
+                                    </ActivatorContent>
+                                    <ChildContent>
+                                        <MudMenuItem Icon="@Icons.Material.Filled.PlayArrow" IconColor="Color.Success" OnClick="@(() => OpenDatePicker(context, month, true))">Définir comme DEBUT</MudMenuItem>
+                                        <MudMenuItem Icon="@Icons.Material.Filled.Stop" IconColor="Color.Error" OnClick="@(() => OpenDatePicker(context, month, false))">Définir comme FIN</MudMenuItem>
+                                    </ChildContent>
+                                </MudMenu>
+                            </MudTd>
+                        }
+                    </RowTemplate>
+                    <ChildRowContent>
+                        @if (context.ShowDetails)
+                        {
+                            @foreach (var etape in context.Etapes)
+                            {
+                                <MudTr Class="etape-row">
+                                    <MudTd></MudTd>
+                                    <MudTd Style="padding-left: 40px; border-right: 2px solid #e0e0e0;">
+                                        <div class="d-flex align-center">
+                                            @* --- AJOUT DU BADGE POUR LE COMPTEUR DE DOCUMENTS --- *@
+                                            <MudBadge Content="@etape.NB_DOCUMENTS" 
+                                                      Color="Color.Error" 
+                                                      Overlap="true" 
+                                                      Visible="@(etape.NB_DOCUMENTS > 0)" 
+                                                      Class="mr-3">
+                                                <MudIconButton Icon="@(etape.NB_DOCUMENTS > 0 ? Icons.Material.Filled.AttachFile : Icons.Material.Outlined.AttachFile)" 
+                                                               Size="Size.Small" 
+                                                               Color="@(etape.NB_DOCUMENTS > 0 ? Color.Success : Color.Default)"
+                                                               OnClick="@(() => OpenUploadDialog(etape))" />
+                                            </MudBadge>
+                                            <MudText Typo="Typo.caption">â†³ @etape.EWF_LIBELLE</MudText>
+                                        </div>
+                                    </MudTd>
+                                    @for (int i = 1; i <= 12; i++)
+                                    {
+                                        int currentMonth = i;
+                                        bool isStepMonth = etape.ETA_DATE_PREVUE?.Month == currentMonth;
+                                        <MudTd Class="@(isStepMonth ? "chrono-cell chrono-estimated" : "chrono-cell")">
+                                            @if (isStepMonth)
+                                            {
+                                                <MudTooltip Text="@($"{etape.EWF_LIBELLE} : {etape.ETA_DATE_PREVUE?.ToShortDateString()}")">
+                                                    <div class="cursor-pointer">
+                                                        <span class="day-badge">@etape.ETA_DATE_PREVUE?.Day</span>
+                                                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" Color="Color.Inherit" />
+                                                    </div>
+                                                </MudTooltip>
+                                            }
+                                        </MudTd>
+                                    }
+                                </MudTr>
+                            }
+                        }
+                    </ChildRowContent>
+                </MudTable>
+
+                <div class="d-flex justify-end mt-6">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" StartIcon="@Icons.Material.Filled.Save" OnClick="SauvegarderTout" Disabled="_isSaving">
+                        @(_isSaving ? "Enregistrement..." : "Enregistrer les modifications")
+                    </MudButton>
+                </div>
+            }
+        </div>
+    </MudPaper>
+</MudContainer>
+
+<MudOverlay @bind-Visible="_datePickerVisible" DarkBackground="true" AutoClose="true" ZIndex="9999">
+    <MudPaper Class="pa-4" Elevation="24">
+        <MudText Typo="Typo.h6" Class="mb-2">Choisir le jour exact</MudText>
+        <MudDatePicker Date="@_tempDate" DateChanged="OnDateConfirmed" PickerVariant="PickerVariant.Static" Rounded="true" />
+        <div class="d-flex justify-end mt-2">
+            <MudButton OnClick="@(() => _datePickerVisible = false)" Color="Color.Secondary">Annuler</MudButton>
+        </div>
+    </MudPaper>
+</MudOverlay>
+
+@code {
+    private bool _isLoading, _isSaving, _datePickerVisible;
+    private int _selectedPtaId;
+    private List<PtaItem> _listePta = new();
+    private List<ActiviteItem> _activites = new();
+    private readonly string[] _moisNoms = { "Jan", "Fév", "Mar", "Avr", "Mai", "Jui", "Jul", "AoÃ»", "Sep", "Oct", "Nov", "Déc" };
+    private ActiviteItem? _editingAct;
+    private bool _isSettingStart;
+    private DateTime? _tempDate;
+
+    protected override async Task OnInitializedAsync() => await LoadPtaList();
+
+    private async Task LoadPtaList() {
+        var res = await BapiService.ExecuteProcedureAsync(1, "PS1161", new object?[] { null });
+        if (res != null) _listePta = res.Select(r => new PtaItem { PTA_ID_PK = ConvertToInt(r["PTA_ID_PK"]), PTA_REFERENCE = r["PTA_REFERENCE"]?.ToString() ?? "" }).ToList();
+    }
+
+      private async Task OnPtaSelected(int ptaId) {
+    if (ptaId == 0) { _activites.Clear(); return; }
+    _selectedPtaId = ptaId;
+    _isLoading = true;
+    _activites.Clear();
+    StateHasChanged();
+
+    try {
+        // 1. Récupérer les activités du PTA (PS1159)
+        var resAct = await BapiService.ExecuteProcedureAsync(1, "PS1159", new object?[] { ptaId });
+        if (resAct == null) return;
+
+        var tempActivites = resAct.Select(r => new ActiviteItem {
+            ACT_ID_PK = ConvertToInt(r["ACT_ID_PK"]),
+            ACT_CODE = r["ACT_CODE"]?.ToString() ?? "",
+            ACT_DESCRIPTION = r["ACT_DESCRIPTION"]?.ToString() ?? "",
+            DateDebut = ConvertToDate(r["ACT_DATE_DEBUT"]),
+            DateFin = ConvertToDate(r["ACT_DATE_FIN"]),
+        }).ToList();
+
+        foreach(var act in tempActivites) {
+            // --- AJOUT CRUCIAL : PS1168 ---
+            // Cette PS génère les lignes de workflow si elles n'existent pas encore
+            // On passe l'ID de l'activité. Le 2ème paramètre "" est souvent le login utilisateur
+            await BapiService.ExecuteProcedureAsync(1, "PS1168", new object?[] { act.ACT_ID_PK, "" });
+            // ------------------------------
+
+            // 2. Charger les étapes maintenant qu'elles sont générées (PS1169)
+            var resEtapes = await BapiService.ExecuteProcedureAsync(1, "PS1169", new object?[] { act.ACT_ID_PK, "" });
+            if (resEtapes != null) {
+                foreach(var e in resEtapes) {
+                    int etapeId = ConvertToInt(e["ETA_ID_PK"]);
+                    
+                    // 3. Vérifier la présence de documents (PS1170)
+                    var resDocs = await BapiService.ExecuteProcedureAsync(1, "PS1170", new object?[] { act.ACT_ID_PK, etapeId });
+                    //bool hasDocs = resDocs != null && resDocs.Count() > 0 && ConvertToInt(resDocs[0]["NB"]) > 0;
+                     int nbDocs = resDocs != null && resDocs.Count() > 0 ? ConvertToInt(resDocs[0]["NB"]) : 0;
+
+                    act.Etapes.Add(new EtapeItem {
+                        ETA_ID_PK = etapeId,
+                        ACT_ID_FK = act.ACT_ID_PK,
+                        EWF_LIBELLE = e["ETA_DESCRIPTION"]?.ToString() ?? "Étape",
+                        ETA_DATE_PREVUE = ConvertToDate(e["ETA_DATE_DEBUT"]),
+                        NB_DOCUMENTS = nbDocs
+                    });
+                }
+            }
+        }
+        _activites = tempActivites;
+    } 
+    catch (Exception ex) {
+        Snackbar.Add($"Erreur lors du chargement : {ex.Message}", Severity.Error);
+    }
+    finally { _isLoading = false; StateHasChanged(); }
+}
+
+    private async Task OpenUploadDialog(EtapeItem etape) {
+        var parameters = new DialogParameters { 
+            ["ActiviteId"] = etape.ACT_ID_FK, 
+            ["EtapeId"] = etape.ETA_ID_PK, 
+            ["EtapeNom"] = etape.EWF_LIBELLE,
+            ["EtapeParent"] = etape 
+        };
+        
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        
+        // Correction de l'avertissement d'obsolescence : ShowAsync
+        var dialog = await DialogService.ShowAsync<DialogUpload>("Archivage Documentaire", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled) {
+            var resDocs = await BapiService.ExecuteProcedureAsync(1, "PS1170", new object?[] { etape.ACT_ID_FK, etape.ETA_ID_PK });
+            
+            // Correction erreur CS0019 et avertissement nullité
+            if (resDocs != null && resDocs.Count() > 0)
+            {
+                
+                  etape.NB_DOCUMENTS = ConvertToInt(resDocs[0]["NB"]);
+            }
+            else 
+               {
+                  etape.NB_DOCUMENTS = 0;
+             }
+            StateHasChanged();
+        }
+    }
+
+    private void OpenActDetails(ActiviteItem act) {
+        Snackbar.Add($"Données de base pour {act.ACT_CODE}", Severity.Info);
+    }
+
+    private void OpenDatePicker(ActiviteItem act, int month, bool isStart) {
+        _editingAct = act; _isSettingStart = isStart; _tempDate = null; _datePickerVisible = true;
+    }
+
+    private void OnDateConfirmed(DateTime? date) {
+        if (_editingAct == null || !date.HasValue) return;
+        if (_isSettingStart) {
+            _editingAct.DateDebut = date;
+            if (_editingAct.DateFin < date) _editingAct.DateFin = null;
+        } else {
+            if (date < _editingAct.DateDebut) { Snackbar.Add("Fin invalide", Severity.Warning); return; }
+            _editingAct.DateFin = date;
+        }
+        _editingAct.IsManual = true; _datePickerVisible = false;
+    }
+
+    private bool IsMonthInRange(ActiviteItem act, int month) {
+        if (!act.DateDebut.HasValue || !act.DateFin.HasValue) return act.DateDebut?.Month == month;
+        return month >= act.DateDebut.Value.Month && month <= act.DateFin.Value.Month;
+    }
+
+    private string GetMonthClass(ActiviteItem act, int month) => 
+        IsMonthInRange(act, month) ? (act.IsManual ? "chrono-cell chrono-manual" : "chrono-cell chrono-estimated") : "chrono-cell";
+
+    private async Task SauvegarderTout() {
+        _isSaving = true;
+        try {
+            foreach (var act in _activites.Where(a => a.IsManual)) {
+                await BapiService.ExecuteProcedureAsync(1, "PS1167", new object?[] { act.ACT_ID_PK, act.DateDebut, act.DateFin, "" });
+                act.IsManual = false;
+            }
+            Snackbar.Add("Enregistré avec succès", Severity.Success);
+            await OnPtaSelected(_selectedPtaId);
+        } finally { _isSaving = false; }
+    }
+
+    private int ConvertToInt(object? obj) => obj == null || obj is DBNull ? 0 : (obj is JsonElement je ? je.GetInt32() : Convert.ToInt32(obj));
+    private DateTime? ConvertToDate(object? obj) => obj == null || obj is DBNull ? null : (obj is JsonElement je ? (je.ValueKind == JsonValueKind.String ? je.GetDateTime() : null) : (obj is DateTime dt ? dt : null));
+
+    public class PtaItem { public int PTA_ID_PK { get; set; } public string PTA_REFERENCE { get; set; } = ""; }
+    public class ActiviteItem {
+        public int ACT_ID_PK { get; set; }
+        public string ACT_CODE { get; set; } = "";
+        public string ACT_DESCRIPTION { get; set; } = "";
+        public DateTime? DateDebut { get; set; }
+        public DateTime? DateFin { get; set; }
+        public bool IsManual { get; set; }
+        public bool ShowDetails { get; set; }
+        public List<EtapeItem> Etapes { get; set; } = new();
+    }
+    public class EtapeItem {
+        public int ETA_ID_PK { get; set; }
+        public int ACT_ID_FK { get; set; }
+        public string EWF_LIBELLE { get; set; } = "";
+        public DateTime? ETA_DATE_PREVUE { get; set; }
+        public int NB_DOCUMENTS { get; set; }
+        public bool HasDocuments => NB_DOCUMENTS > 0;
+    }
+
+    private async Task ExporterExcel() {
+        using var workbook = new XLWorkbook();
+        var ws = workbook.Worksheets.Add("Chronogramme");
+        ws.Cell(1, 1).Value = "Code / Description";
+        for (int i = 0; i < 12; i++) {
+            var cell = ws.Cell(1, i + 2); cell.Value = _moisNoms[i];
+            cell.Style.Fill.BackgroundColor = XLColor.FromHtml("#1c335a");
+            cell.Style.Font.FontColor = XLColor.White;
+        }
+
+        int row = 2;
+        foreach (var act in _activites) {
+            ws.Cell(row, 1).Value = $"{act.ACT_CODE} - {act.ACT_DESCRIPTION}";
+            ws.Cell(row, 1).Style.Font.Bold = true;
+            for (int i = 1; i <= 12; i++) if (IsMonthInRange(act, i)) ws.Cell(row, i + 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#2e7d32");
+            row++;
+            foreach (var etape in act.Etapes) {
+                ws.Cell(row, 1).Value = $"   â†³ {etape.EWF_LIBELLE}";
+                if (etape.ETA_DATE_PREVUE.HasValue) ws.Cell(row, etape.ETA_DATE_PREVUE.Value.Month + 1).Value = etape.ETA_DATE_PREVUE.Value.Day;
+                row++;
+            }
+        }
+        ws.Columns().AdjustToContents();
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        await JSRuntime.InvokeVoidAsync("downloadFile", $"Chronogramme_{_selectedPtaId}.xlsx", Convert.ToBase64String(stream.ToArray()));
+    }
+}

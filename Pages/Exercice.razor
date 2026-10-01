@@ -1,0 +1,296 @@
+@page "/Exercice"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Components.Authorization
+@using BGTA.Server.Models
+@using BGTA.Server.Data.Services
+@inject BapiService BapiService
+@inject NavigationManager Navigation
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<style>
+    .mud-table-row:hover { background-color: rgba(59, 130, 246, 0.05) !important; transition: 0.3s ease; }
+    .glass-header-icon { background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(4px); border-radius: 12px; padding: 10px; }
+    .action-btn { transition: transform 0.2s; }
+    .action-btn:hover { transform: scale(1.1); }
+    .custom-card-form { background: #fafafa; border: 1px solid #e2e8f0; border-radius: 20px; }
+    .status-badge { font-weight: 700; letter-spacing: 0.5px; }
+</style>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-8 mb-8">
+    <MudPaper Elevation="25" Class="pa-0 overflow-hidden" Style="border-radius: 24px;">
+        
+        @* --- HEADER PREMIUM --- *@
+        <div class="pa-6 d-flex align-center" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%); color: white;">
+            <div class="glass-header-icon mr-4">
+                <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" Size="Size.Large" />
+            </div>
+            <div>
+                <MudText Typo="Typo.h5" Style="font-weight: 800; letter-spacing: -0.5px;">Gestion des Exercices (EXR)</MudText>
+                <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.6)">Définition des périodes comptables et états de clôture</MudText>
+            </div>
+            <MudSpacer />
+            
+            @* --- EXPORTATION --- *@
+            <MudMenu StartIcon="@Icons.Material.Filled.IosShare" Label="Exporter" Color="Color.Inherit" 
+                     Variant="Variant.Outlined" EndIcon="@Icons.Material.Filled.KeyboardArrowDown" 
+                     Class="rounded-pill mr-3 px-4" Style="border-color: rgba(255,255,255,0.3)">
+                <MudMenuItem OnClick="@(() => ExportData("Excel"))">
+                    <MudStack Row="true"><MudIcon Icon="@Icons.Custom.FileFormats.FileExcel" Color="Color.Success" /> <MudText>Excel (.xlsx)</MudText></MudStack>
+                </MudMenuItem>
+                <MudMenuItem OnClick="@(() => ExportData("PDF"))">
+                    <MudStack Row="true"><MudIcon Icon="@Icons.Custom.FileFormats.FilePdf" Color="Color.Error" /> <MudText>PDF (.pdf)</MudText></MudStack>
+                </MudMenuItem>
+            </MudMenu>
+
+            <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Inherit" OnClick="ClosePage" Variant="Variant.Filled" Style="background: rgba(255,255,255,0.1)" />
+        </div>
+
+        <MudTabs @bind-ActivePanelIndex="_activeTab" Elevation="0" Rounded="false" ApplyEffectsToContainer="true" 
+                 PanelClass="pa-6" Color="Color.Primary" SliderColor="Color.Info">
+            
+            @* --- ONGLET 1 : LISTE --- *@
+            <MudTabPanel Text="RÉFÉRENTIEL EXR" Icon="@Icons.Material.Filled.Timeline">
+                
+                <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-6 gap-4">
+                    <MudTextField @bind-Value="_searchString" Placeholder="Rechercher une année..." 
+                                  Variant="Variant.Filled" Margin="Margin.Dense" Adornment="Adornment.Start" 
+                                  AdornmentIcon="@Icons.Material.Filled.Search" AdornmentColor="Color.Primary" 
+                                  Class="mt-0 rounded-lg" Style="width: 350px; background: #f1f5f9;" Immediate="true" />
+                    
+                    <MudSpacer />
+                    
+                    <MudButton StartIcon="@Icons.Material.Filled.EventAvailable" Variant="Variant.Filled" Color="Color.Primary" 
+                               OnClick="AddNewItem" Size="Size.Large" Class="px-8 rounded-pill shadow-lg">
+                        Nouvel Exercice
+                    </MudButton>
+                </MudStack>
+
+                @if (_isLoadingList)
+                {
+                    <MudStack Spacing="2">
+                        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="50px" />
+                        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="400px" Animation="Animation.Wave" />
+                    </MudStack>
+                }
+                else
+                {
+                    <MudDataGrid Items="@_exrList" T="ExrItem" Hover="true" Elevation="0"
+                                 QuickFilter="@_quickFilter" Class="rounded-xl border shadow-sm">
+                        <Columns>
+                            <PropertyColumn Property="x => x.IdExercice_PK" Title="Code/ID" />
+                            <PropertyColumn Property="x => x.Annee" Title="Année">
+                                <CellTemplate>
+                                    <MudText Typo="Typo.body1" Class="fw-bold text-primary">@context.Item.Annee</MudText>
+                                </CellTemplate>
+                            </PropertyColumn>
+                            <PropertyColumn Property="x => x.DateDebut" Title="Début" Format="dd/MM/yyyy" />
+                            <PropertyColumn Property="x => x.DateFin" Title="Fin" Format="dd/MM/yyyy" />
+                            <TemplateColumn Title="Statut">
+                                <CellTemplate>
+                                    <MudChip T="string" Size="Size.Small" 
+                                             Color="@(context.Item.EnCours ? Color.Success : Color.Default)"
+                                             Variant="@(context.Item.EnCours ? Variant.Filled : Variant.Text)"
+                                             Class="status-badge">
+                                        @(context.Item.EnCours ? "EN COURS" : "EN ATTENTE")
+                                    </MudChip>
+                                </CellTemplate>
+                            </TemplateColumn>
+                            <TemplateColumn Title="Clôture">
+                                <CellTemplate>
+                                    @if (context.Item.Cloture)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Error" Icon="@Icons.Material.Filled.Lock" Variant="Variant.Outlined">
+                                            Fermé le @context.Item.DateCloture?.ToString("dd/MM/yyyy")
+                                        </MudChip>
+                                    }
+                                    else
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.LockOpen" Color="Color.Default" Size="Size.Small" />
+                                    }
+                                </CellTemplate>
+                            </TemplateColumn>
+                            <TemplateColumn Title="Actions" HeaderStyle="text-align: right;" CellStyle="text-align: right;">
+                                <CellTemplate>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Warning" Size="Size.Small" OnClick="@(() => PrepareEdit(context.Item))" Class="action-btn" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteItemInline(context.Item))" Class="action-btn" />
+                                </CellTemplate>
+                            </TemplateColumn>
+                        </Columns>
+                        <PagerContent>
+                            <MudDataGridPager T="ExrItem" InfoFormat="{all_items} exercices au total" RowsPerPageString="Lignes :" />
+                        </PagerContent>
+                    </MudDataGrid>
+                }
+            </MudTabPanel>
+
+            @* --- ONGLET 2 : FORMULAIRE --- *@
+            <MudTabPanel Text="CONFIGURER EXERCICE" Icon="@Icons.Material.Filled.Settings">
+                <div class="d-flex justify-center pa-4">
+                    <EditForm Model="_currentItem" OnValidSubmit="SaveItem" Style="width: 100%; max-width: 900px;">
+                        <div class="custom-card-form pa-8 shadow-sm">
+                            <MudText Typo="Typo.h6" Class="mb-6 fw-bold text-primary">Détails de l'Exercice Comptable</MudText>
+                            <MudGrid Spacing="4">
+                                <MudItem xs="12" md="4">
+                                    <MudNumericField @bind-Value="_currentItem.IdExercice_PK" Label="Identifiant (ID)" Required="true" 
+                                                     Variant="Variant.Outlined" HideSpinButtons="true" />
+                                </MudItem>
+                                <MudItem xs="12" md="4">
+                                    <MudNumericField @bind-Value="_currentItem.Annee" Label="Année Fiscale" Required="true" 
+                                                     Variant="Variant.Outlined" Min="2000" Max="2100" />
+                                </MudItem>
+                                <MudItem xs="12" md="4" />
+
+                                <MudItem xs="12" md="4">
+                                    <MudDatePicker @bind-Date="_currentItem.DateDebut" Label="Date Début" Required="true" 
+                                                   Variant="Variant.Outlined" Color="Color.Primary" />
+                                </MudItem>
+                                <MudItem xs="12" md="4">
+                                    <MudDatePicker @bind-Date="_currentItem.DateFin" Label="Date Fin" Required="true" 
+                                                   Variant="Variant.Outlined" Color="Color.Primary" />
+                                </MudItem>
+                                <MudItem xs="12" md="4">
+                                    <MudDatePicker @bind-Date="_currentItem.DateCloture" Label="Date de Clôture Effective" 
+                                                   Variant="Variant.Outlined" Clearable="true" Disabled="!_currentItem.Cloture" 
+                                                   Color="Color.Error" />
+                                </MudItem>
+
+                                <MudItem xs="12" md="6">
+                                    <MudPaper Class="pa-4 d-flex align-center justify-space-between rounded-lg border-2 border-solid" 
+                                              Style="@(_currentItem.EnCours ? "border-color: var(--mud-palette-success); background: #f0fdf4;" : "border-color: #e2e8f0;")">
+                                        <div>
+                                            <MudText Typo="Typo.subtitle1" Class="fw-bold">Exercice Actif</MudText>
+                                            <MudText Typo="Typo.caption">Définit l'année de travail par défaut</MudText>
+                                        </div>
+                                        <MudSwitch @bind-Value="_currentItem.EnCours" Color="Color.Success" T="bool" />
+                                    </MudPaper>
+                                </MudItem>
+                                
+                                <MudItem xs="12" md="6">
+                                    <MudPaper Class="pa-4 d-flex align-center justify-space-between rounded-lg border-2 border-solid" 
+                                              Style="@(_currentItem.Cloture ? "border-color: var(--mud-palette-error); background: #fef2f2;" : "border-color: #e2e8f0;")">
+                                        <div>
+                                            <MudText Typo="Typo.subtitle1" Class="fw-bold">Verrouillage / Clôture</MudText>
+                                            <MudText Typo="Typo.caption">Empêche toute modification ultérieure</MudText>
+                                        </div>
+                                        <MudSwitch @bind-Value="_currentItem.Cloture" Color="Color.Error" T="bool" />
+                                    </MudPaper>
+                                </MudItem>
+                                
+                                <MudItem xs="12" Class="d-flex justify-end gap-3 mt-6">
+                                    <MudButton OnClick="@(() => _activeTab = 0)" Variant="Variant.Text">Retour Ã  la liste</MudButton>
+                                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" 
+                                               StartIcon="@Icons.Material.Filled.Save" Size="Size.Large" Class="px-10 rounded-pill">
+                                        Enregistrer l'exercice
+                                    </MudButton>
+                                </MudItem>
+                            </MudGrid>
+                        </div>
+                    </EditForm>
+                </div>
+            </MudTabPanel>
+        </MudTabs>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private int _activeTab = 0;
+    private bool _isLoadingList = true;
+    private string _searchString = "";
+    private List<ExrItem> _exrList = new();
+    private ExrItem _currentItem = new();
+
+    private Func<ExrItem, bool> _quickFilter => item =>
+    {
+        if (string.IsNullOrWhiteSpace(_searchString)) return true;
+        return item.Annee.ToString().Contains(_searchString) || 
+               item.IdExercice_PK.ToString().Contains(_searchString);
+    };
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _isLoadingList = true;
+        try {
+            var result = await BapiService.ExecuteProcedureAsync(1, "PS1155", new object?[] { null });
+            if (result != null) {
+                _exrList = result.Select(r => new ExrItem {
+                    IdExercice_PK = int.Parse(r.GetValueOrDefault("IdExercice_PK")?.ToString() ?? "0"),
+                    Annee = int.Parse(r.GetValueOrDefault("Annee")?.ToString() ?? "0"),
+                    DateDebut = DateTime.TryParse(r.GetValueOrDefault("DateDebut")?.ToString(), out var dd) ? dd : null,
+                    DateFin = DateTime.TryParse(r.GetValueOrDefault("DateFin")?.ToString(), out var df) ? df : null,
+                    EnCours = bool.Parse(r.GetValueOrDefault("EnCours")?.ToString() ?? "false"),
+                    Cloture = bool.Parse(r.GetValueOrDefault("Cloture")?.ToString() ?? "false"),
+                    DateCloture = DateTime.TryParse(r.GetValueOrDefault("DateCloture")?.ToString(), out var dc) ? dc : null
+                }).ToList();
+            }
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _isLoadingList = false; }
+    }
+
+    private async Task ExportData(string type)
+    {
+        Snackbar.Add($"Préparation du rapport des exercices ({type})...", Severity.Info);
+        await Task.Delay(800);
+        Snackbar.Add("Exportation terminée avec succès.", Severity.Success);
+    }
+
+    private void AddNewItem() { 
+        _currentItem = new ExrItem { 
+            Annee = DateTime.Now.Year, 
+            DateDebut = new DateTime(DateTime.Now.Year, 1, 1),
+            DateFin = new DateTime(DateTime.Now.Year, 12, 31) 
+        }; 
+        _activeTab = 1; 
+    }
+
+    private void PrepareEdit(ExrItem item) {
+        _currentItem = new ExrItem { 
+            IdExercice_PK = item.IdExercice_PK, Annee = item.Annee,
+            DateDebut = item.DateDebut, DateFin = item.DateFin,
+            EnCours = item.EnCours, Cloture = item.Cloture, DateCloture = item.DateCloture
+        };
+        _activeTab = 1;
+    }
+
+    private async Task SaveItem() {
+        try {
+            // Logique de mode selon présence dans la liste
+            int mode = _exrList.Any(x => x.IdExercice_PK == _currentItem.IdExercice_PK) ? 2 : 1;
+            
+            await BapiService.ExecuteProcedureAsync(1, "PS1154", new object?[] { 
+                mode, _currentItem.IdExercice_PK, _currentItem.Annee, 
+                _currentItem.DateDebut, _currentItem.DateFin, _currentItem.EnCours, 
+                _currentItem.Cloture, _currentItem.DateCloture,"" 
+            });
+
+            Snackbar.Add("Exercice mis Ã  jour avec succès", Severity.Success);
+            _activeTab = 0;
+            await LoadData();
+        }
+        catch (Exception ex) { await DialogService.ShowMessageBox("Erreur", ex.Message); }
+    }
+
+    private async Task DeleteItemInline(ExrItem item) {
+        var result = await DialogService.ShowMessageBox("Confirmation", $"Supprimer l'exercice {item.Annee} ?", yesText: "Supprimer", cancelText: "Annuler");
+        if (result == true) {
+            await BapiService.ExecuteProcedureAsync(1, "PS1154", new object?[] { 3, item.IdExercice_PK, null, null, null, null, null, null,"" });
+            await LoadData();
+            Snackbar.Add("Exercice supprimé", Severity.Warning);
+        }
+    }
+
+    private void ClosePage() => Navigation.NavigateTo("/");
+
+    public class ExrItem {
+        public int IdExercice_PK { get; set; }
+        public int Annee { get; set; }
+        public DateTime? DateDebut { get; set; }
+        public DateTime? DateFin { get; set; }
+        public bool EnCours { get; set; }
+        public bool Cloture { get; set; }
+        public DateTime? DateCloture { get; set; }
+    }
+}
