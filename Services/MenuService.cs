@@ -114,9 +114,6 @@ public class MenuService : IMenuService
             }
         }
         return menus;
-    }l); }
-        }
-        return menus;
     }
 
     private MenuItem CreateMenuItemFromRow(Dictionary<string, object?> row, int level)

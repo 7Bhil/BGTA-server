@@ -24,10 +24,10 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         // ðŸ”‘ RÉINITIALISATION du timer Ã  chaque requête utilisateur (sliding window)
         options.SlidingExpiration = true;
         
-        // ðŸ”‘ SÉCURITÉ RGPD
+        // Security Cookie Config
         options.Cookie.HttpOnly = true;              // Bloque l'accès JavaScript au cookie
-        options.Cookie.SecurePolicy = CookieSecurePolicy.Always; // HTTPS uniquement
-        options.Cookie.SameSite = SameSiteMode.Strict; // Protection CSRF
+        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest; // Compatible HTTP (développement) et HTTPS
+        options.Cookie.SameSite = SameSiteMode.Lax; // Protection CSRF adaptée aux redirections
         options.Cookie.Name = "BGTA.Auth";         // Nom explicite
         
         // ðŸ”‘ GESTION PERSONNALISÉE des redirections

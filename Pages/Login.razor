@@ -306,6 +306,11 @@
                 ErrorMessage = "Veuillez renseigner votre identifiant et votre profil.";
             }
         }
+        catch (NavigationException)
+        {
+            // Blazor lève NavigationException pour forcer la redirection HTTP, on laisse passer
+            throw;
+        }
         catch (Exception ex)
         {
             Logger.LogError(
