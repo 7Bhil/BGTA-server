@@ -1,0 +1,179 @@
+@using BGTA.Server.Data.Services
+@using MudBlazor
+@inject NavigationManager Navigation
+@inject BapiService BapiService
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4 mb-8">
+    @* EN-TETE ADMIN *@
+    <MudPaper Elevation="0" Class="pa-6 rounded-xl border mb-6" Style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white;">
+        <div class="d-flex align-center justify-space-between flex-wrap gap-4">
+            <div class="d-flex align-center">
+                <div class="pa-3 rounded-lg mr-4" style="background: rgba(59, 130, 246, 0.2);">
+                    <MudIcon Icon="@Icons.Material.Filled.AdminPanelSettings" Size="Size.Large" Color="Color.Info" />
+                </div>
+                <div>
+                    <MudText Typo="Typo.h5" Style="font-weight: 800;">Administration Système & Référentiels</MudText>
+                    <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.7);">Supervision globale, gestion des profils et gouvernance des données</MudText>
+                </div>
+            </div>
+            <MudButton Variant="Variant.Outlined" Color="Color.Inherit" StartIcon="@Icons.Material.Filled.Refresh" OnClick="RefreshMetrics" Class="rounded-pill px-4">
+                Actualiser
+            </MudButton>
+        </div>
+    </MudPaper>
+
+    @* METRIQUES ADMIN *@
+    <MudGrid Spacing="4" Class="mb-6">
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Elevation="2" Class="pa-5 rounded-xl border">
+                <div class="d-flex justify-space-between align-center">
+                    <div>
+                        <MudText Typo="Typo.caption" Class="text-muted fw-bold">PROFILS ACTIFS</MudText>
+                        <MudText Typo="Typo.h4" Style="font-weight: 800; color: #1e293b;">@totalProfils</MudText>
+                    </div>
+                    <div class="pa-3 rounded-lg" style="background: #e0f2fe; color: #0284c7;">
+                        <MudIcon Icon="@Icons.Material.Filled.Group" Size="Size.Medium" />
+                    </div>
+                </div>
+                <MudProgressLinear Color="Color.Info" Value="100" Class="mt-4 rounded-pill" Style="height: 4px;" />
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Elevation="2" Class="pa-5 rounded-xl border">
+                <div class="d-flex justify-space-between align-center">
+                    <div>
+                        <MudText Typo="Typo.caption" Class="text-muted fw-bold">ETAT DU SERVICE BAPI</MudText>
+                        <MudText Typo="Typo.h6" Style="font-weight: 800; color: #16a34a;">Opérationnel</MudText>
+                    </div>
+                    <div class="pa-3 rounded-lg" style="background: #dcfce7; color: #16a34a;">
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Medium" />
+                    </div>
+                </div>
+                <MudProgressLinear Color="Color.Success" Value="100" Class="mt-4 rounded-pill" Style="height: 4px;" />
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Elevation="2" Class="pa-5 rounded-xl border">
+                <div class="d-flex justify-space-between align-center">
+                    <div>
+                        <MudText Typo="Typo.caption" Class="text-muted fw-bold">BASE DE DONNEES</MudText>
+                        <MudText Typo="Typo.h6" Style="font-weight: 800; color: #1e293b;">TVS_BM_2026</MudText>
+                    </div>
+                    <div class="pa-3 rounded-lg" style="background: #fef3c7; color: #d97706;">
+                        <MudIcon Icon="@Icons.Material.Filled.Storage" Size="Size.Medium" />
+                    </div>
+                </div>
+                <MudProgressLinear Color="Color.Warning" Value="100" Class="mt-4 rounded-pill" Style="height: 4px;" />
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Elevation="2" Class="pa-5 rounded-xl border">
+                <div class="d-flex justify-space-between align-center">
+                    <div>
+                        <MudText Typo="Typo.caption" Class="text-muted fw-bold">SECURITE AUTH</MudText>
+                        <MudText Typo="Typo.h6" Style="font-weight: 800; color: #2563eb;">BGTA-Auth</MudText>
+                    </div>
+                    <div class="pa-3 rounded-lg" style="background: #ede9fe; color: #7c3aed;">
+                        <MudIcon Icon="@Icons.Material.Filled.Security" Size="Size.Medium" />
+                    </div>
+                </div>
+                <MudProgressLinear Color="Color.Secondary" Value="100" Class="mt-4 rounded-pill" Style="height: 4px;" />
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    @* ACCES DIRECTS ADMIN *@
+    <MudText Typo="Typo.h6" Class="mb-4 fw-bold" Style="color: #1e293b;">Modules d'Administration et Paramétrage</MudText>
+    <MudGrid Spacing="4">
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Elevation="2" Class="rounded-xl border h-100 d-flex flex-column justify-space-between">
+                <MudCardContent Class="pa-5">
+                    <div class="d-flex align-center mb-3">
+                        <div class="pa-3 rounded-lg mr-3" style="background: rgba(99, 102, 241, 0.1); color: #4f46e5;">
+                            <MudIcon Icon="@Icons.Material.Filled.ManageAccounts" Size="Size.Medium" />
+                        </div>
+                        <MudText Typo="Typo.subtitle1" Style="font-weight: 700;">Gestion des Profils</MudText>
+                    </div>
+                    <MudText Typo="Typo.body2" Class="text-muted mb-4">
+                        Configuration des rôles applicatifs, création et modification des profils d'accès aux procédures.
+                    </MudText>
+                </MudCardContent>
+                <div class="pa-4 pt-0">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" OnClick="@(() => Navigation.NavigateTo("/profils"))" Class="rounded-pill">
+                        Accéder aux Profils
+                    </MudButton>
+                </div>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Elevation="2" Class="rounded-xl border h-100 d-flex flex-column justify-space-between">
+                <MudCardContent Class="pa-5">
+                    <div class="d-flex align-center mb-3">
+                        <div class="pa-3 rounded-lg mr-3" style="background: rgba(16, 185, 129, 0.1); color: #059669;">
+                            <MudIcon Icon="@Icons.Material.Filled.Category" Size="Size.Medium" />
+                        </div>
+                        <MudText Typo="Typo.subtitle1" Style="font-weight: 700;">Référentiel Missions</MudText>
+                    </div>
+                    <MudText Typo="Typo.body2" Class="text-muted mb-4">
+                        Consultation et mise à jour du référentiel des missions (MISSION_MIS) et habilitations associées.
+                    </MudText>
+                </MudCardContent>
+                <div class="pa-4 pt-0">
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" FullWidth="true" OnClick="@(() => Navigation.NavigateTo("/MISSION2"))" Class="rounded-pill">
+                        Gérer les Missions
+                    </MudButton>
+                </div>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Elevation="2" Class="rounded-xl border h-100 d-flex flex-column justify-space-between">
+                <MudCardContent Class="pa-5">
+                    <div class="d-flex align-center mb-3">
+                        <div class="pa-3 rounded-lg mr-3" style="background: rgba(245, 158, 11, 0.1); color: #d97706;">
+                            <MudIcon Icon="@Icons.Material.Filled.Map" Size="Size.Medium" />
+                        </div>
+                        <MudText Typo="Typo.subtitle1" Style="font-weight: 700;">Référentiels Sites & Secteurs</MudText>
+                    </div>
+                    <MudText Typo="Typo.body2" Class="text-muted mb-4">
+                        Administration des sites géographiques, secteurs d'activité et sous-secteurs d'intervention.
+                    </MudText>
+                </MudCardContent>
+                <div class="pa-4 pt-0">
+                    <MudButton Variant="Variant.Filled" Color="Color.Warning" FullWidth="true" OnClick="@(() => Navigation.NavigateTo("/Site"))" Class="rounded-pill">
+                        Gérer les Sites
+                    </MudButton>
+                </div>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+</MudContainer>
+
+@code {
+    private int totalProfils = 17;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshMetrics();
+    }
+
+    private async Task RefreshMetrics()
+    {
+        try
+        {
+            var result = await BapiService.ExecuteProcedureAsync(1, "20038", Array.Empty<object?>());
+            if (result != null && result.Length > 0)
+            {
+                totalProfils = result.Length;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[AdminDashboard] Erreur chargement métriques: {ex.Message}");
+        }
+    }
+}

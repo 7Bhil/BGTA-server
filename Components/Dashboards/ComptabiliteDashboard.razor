@@ -1,0 +1,139 @@
+@using BGTA.Server.Data.Services
+@using MudBlazor
+@inject NavigationManager Navigation
+@inject BapiService BapiService
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4 mb-8">
+    @* EN-TETE COMPTABILITE *@
+    <MudPaper Elevation="0" Class="pa-6 rounded-xl border mb-6" Style="background: linear-gradient(135deg, #065f46 0%, #047857 100%); color: white;">
+        <div class="d-flex align-center justify-space-between flex-wrap gap-4">
+            <div class="d-flex align-center">
+                <div class="pa-3 rounded-lg mr-4" style="background: rgba(255, 255, 255, 0.2);">
+                    <MudIcon Icon="@Icons.Material.Filled.AccountBalance" Size="Size.Large" Color="Color.Inherit" />
+                </div>
+                <div>
+                    <MudText Typo="Typo.h5" Style="font-weight: 800;">Espace Comptabilité & Facturation</MudText>
+                    <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.8);">Suivi des autorisations d'engagement, plans de passation et exercices budgétaires</MudText>
+                </div>
+            </div>
+            <MudChip T="string" Color="Color.Surface" Variant="Variant.Filled" Size="Size.Medium" Class="px-4 fw-bold text-dark">
+                Exercice Budgétaire 2026
+            </MudChip>
+        </div>
+    </MudPaper>
+
+    @* METRIQUES FINANCIERES *@
+    <MudGrid Spacing="4" Class="mb-6">
+        <MudItem xs="12" sm="6" md="4">
+            <MudPaper Elevation="2" Class="pa-5 rounded-xl border">
+                <div class="d-flex justify-space-between align-center">
+                    <div>
+                        <MudText Typo="Typo.caption" Class="text-muted fw-bold">ENGAGEMENTS VALIDES</MudText>
+                        <MudText Typo="Typo.h5" Style="font-weight: 800; color: #065f46;">Conformes</MudText>
+                    </div>
+                    <div class="pa-3 rounded-lg" style="background: #dcfce7; color: #059669;">
+                        <MudIcon Icon="@Icons.Material.Filled.Verified" Size="Size.Medium" />
+                    </div>
+                </div>
+                <MudProgressLinear Color="Color.Success" Value="100" Class="mt-4 rounded-pill" Style="height: 4px;" />
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="4">
+            <MudPaper Elevation="2" Class="pa-5 rounded-xl border">
+                <div class="d-flex justify-space-between align-center">
+                    <div>
+                        <MudText Typo="Typo.caption" Class="text-muted fw-bold">DOSSIERS PASSATION</MudText>
+                        <MudText Typo="Typo.h5" Style="font-weight: 800; color: #1e293b;">En Cours</MudText>
+                    </div>
+                    <div class="pa-3 rounded-lg" style="background: #e0f2fe; color: #0284c7;">
+                        <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" Size="Size.Medium" />
+                    </div>
+                </div>
+                <MudProgressLinear Color="Color.Info" Value="100" Class="mt-4 rounded-pill" Style="height: 4px;" />
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="4">
+            <MudPaper Elevation="2" Class="pa-5 rounded-xl border">
+                <div class="d-flex justify-space-between align-center">
+                    <div>
+                        <MudText Typo="Typo.caption" Class="text-muted fw-bold">CONTROLE PROCEDURES</MudText>
+                        <MudText Typo="Typo.h5" Style="font-weight: 800; color: #047857;">Code Marchés</MudText>
+                    </div>
+                    <div class="pa-3 rounded-lg" style="background: #ecfdf5; color: #047857;">
+                        <MudIcon Icon="@Icons.Material.Filled.Gavel" Size="Size.Medium" />
+                    </div>
+                </div>
+                <MudProgressLinear Color="Color.Success" Value="100" Class="mt-4 rounded-pill" Style="height: 4px;" />
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    @* MODULES FINANCIERS *@
+    <MudText Typo="Typo.h6" Class="mb-4 fw-bold" Style="color: #1e293b;">Opérations et Suivis Financiers</MudText>
+    <MudGrid Spacing="4">
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Elevation="2" Class="rounded-xl border h-100 d-flex flex-column justify-space-between">
+                <MudCardContent Class="pa-5">
+                    <div class="d-flex align-center mb-3">
+                        <div class="pa-3 rounded-lg mr-3" style="background: rgba(4, 120, 87, 0.1); color: #047857;">
+                            <MudIcon Icon="@Icons.Material.Filled.Approval" Size="Size.Medium" />
+                        </div>
+                        <MudText Typo="Typo.subtitle1" Style="font-weight: 700;">Autorisation d'Engagement</MudText>
+                    </div>
+                    <MudText Typo="Typo.body2" Class="text-muted mb-4">
+                        Gestion des demandes et contrôles des autorisations d'engagement sur le budget des marchés.
+                    </MudText>
+                </MudCardContent>
+                <div class="pa-4 pt-0">
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" FullWidth="true" OnClick="@(() => Navigation.NavigateTo("/AutorisationEngagement"))" Class="rounded-pill">
+                        Consulter les Engagements
+                    </MudButton>
+                </div>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Elevation="2" Class="rounded-xl border h-100 d-flex flex-column justify-space-between">
+                <MudCardContent Class="pa-5">
+                    <div class="d-flex align-center mb-3">
+                        <div class="pa-3 rounded-lg mr-3" style="background: rgba(2, 132, 199, 0.1); color: #0284c7;">
+                            <MudIcon Icon="@Icons.Material.Filled.FormatListNumbered" Size="Size.Medium" />
+                        </div>
+                        <MudText Typo="Typo.subtitle1" Style="font-weight: 700;">Génération Plan Passation (PP)</MudText>
+                    </div>
+                    <MudText Typo="Typo.body2" Class="text-muted mb-4">
+                        Génération automatisée des prévisions et échéanciers du Plan de Passation des Marchés.
+                    </MudText>
+                </MudCardContent>
+                <div class="pa-4 pt-0">
+                    <MudButton Variant="Variant.Filled" Color="Color.Info" FullWidth="true" OnClick="@(() => Navigation.NavigateTo("/GenerationPP"))" Class="rounded-pill">
+                        Accéder à la Génération PP
+                    </MudButton>
+                </div>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Elevation="2" Class="rounded-xl border h-100 d-flex flex-column justify-space-between">
+                <MudCardContent Class="pa-5">
+                    <div class="d-flex align-center mb-3">
+                        <div class="pa-3 rounded-lg mr-3" style="background: rgba(217, 119, 6, 0.1); color: #d97706;">
+                            <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" Size="Size.Medium" />
+                        </div>
+                        <MudText Typo="Typo.subtitle1" Style="font-weight: 700;">Exercices Budgétaires</MudText>
+                    </div>
+                    <MudText Typo="Typo.body2" Class="text-muted mb-4">
+                        Configuration des années d'exercice, clôtures comptables et ouvertures de périodes.
+                    </MudText>
+                </MudCardContent>
+                <div class="pa-4 pt-0">
+                    <MudButton Variant="Variant.Filled" Color="Color.Warning" FullWidth="true" OnClick="@(() => Navigation.NavigateTo("/Exercice"))" Class="rounded-pill">
+                        Gérer les Exercices
+                    </MudButton>
+                </div>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+</MudContainer>

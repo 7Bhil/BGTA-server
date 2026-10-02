@@ -1,0 +1,139 @@
+@using BGTA.Server.Data.Services
+@using MudBlazor
+@inject NavigationManager Navigation
+@inject BapiService BapiService
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4 mb-8">
+    @* EN-TETE TERRAIN *@
+    <MudPaper Elevation="0" Class="pa-6 rounded-xl border mb-6" Style="background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%); color: white;">
+        <div class="d-flex align-center justify-space-between flex-wrap gap-4">
+            <div class="d-flex align-center">
+                <div class="pa-3 rounded-lg mr-4" style="background: rgba(255, 255, 255, 0.2);">
+                    <MudIcon Icon="@Icons.Material.Filled.LocalShipping" Size="Size.Large" Color="Color.Inherit" />
+                </div>
+                <div>
+                    <MudText Typo="Typo.h5" Style="font-weight: 800;">Espace Opérations & Pointage Terrain</MudText>
+                    <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.8);">Suivi en temps réel des activités, missions et chronogrammes d'exécution</MudText>
+                </div>
+            </div>
+            <MudChip T="string" Color="Color.Surface" Variant="Variant.Filled" Size="Size.Medium" Class="px-4 fw-bold text-primary">
+                Pointage Direct
+            </MudChip>
+        </div>
+    </MudPaper>
+
+    @* METRIQUES TERRAIN *@
+    <MudGrid Spacing="4" Class="mb-6">
+        <MudItem xs="12" sm="6" md="4">
+            <MudPaper Elevation="2" Class="pa-5 rounded-xl border">
+                <div class="d-flex justify-space-between align-center">
+                    <div>
+                        <MudText Typo="Typo.caption" Class="text-muted fw-bold">CHRONOGRAMMES</MudText>
+                        <MudText Typo="Typo.h5" Style="font-weight: 800; color: #1d4ed8;">Actifs</MudText>
+                    </div>
+                    <div class="pa-3 rounded-lg" style="background: #dbeafe; color: #1d4ed8;">
+                        <MudIcon Icon="@Icons.Material.Filled.Event" Size="Size.Medium" />
+                    </div>
+                </div>
+                <MudProgressLinear Color="Color.Primary" Value="100" Class="mt-4 rounded-pill" Style="height: 4px;" />
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="4">
+            <MudPaper Elevation="2" Class="pa-5 rounded-xl border">
+                <div class="d-flex justify-space-between align-center">
+                    <div>
+                        <MudText Typo="Typo.caption" Class="text-muted fw-bold">ACTIVITES PLANIFIEES</MudText>
+                        <MudText Typo="Typo.h5" Style="font-weight: 800; color: #0284c7;">A Jour</MudText>
+                    </div>
+                    <div class="pa-3 rounded-lg" style="background: #e0f2fe; color: #0284c7;">
+                        <MudIcon Icon="@Icons.Material.Filled.PlayCircleOutline" Size="Size.Medium" />
+                    </div>
+                </div>
+                <MudProgressLinear Color="Color.Info" Value="100" Class="mt-4 rounded-pill" Style="height: 4px;" />
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="4">
+            <MudPaper Elevation="2" Class="pa-5 rounded-xl border">
+                <div class="d-flex justify-space-between align-center">
+                    <div>
+                        <MudText Typo="Typo.caption" Class="text-muted fw-bold">STATUT SAISIE</MudText>
+                        <MudText Typo="Typo.h5" Style="font-weight: 800; color: #16a34a;">Connecté BAPI</MudText>
+                    </div>
+                    <div class="pa-3 rounded-lg" style="background: #dcfce7; color: #16a34a;">
+                        <MudIcon Icon="@Icons.Material.Filled.Wifi" Size="Size.Medium" />
+                    </div>
+                </div>
+                <MudProgressLinear Color="Color.Success" Value="100" Class="mt-4 rounded-pill" Style="height: 4px;" />
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    @* MODULES TERRAIN *@
+    <MudText Typo="Typo.h6" Class="mb-4 fw-bold" Style="color: #1e293b;">Saisie et Consultation Opérationnelle</MudText>
+    <MudGrid Spacing="4">
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Elevation="2" Class="rounded-xl border h-100 d-flex flex-column justify-space-between">
+                <MudCardContent Class="pa-5">
+                    <div class="d-flex align-center mb-3">
+                        <div class="pa-3 rounded-lg mr-3" style="background: rgba(29, 78, 216, 0.1); color: #1d4ed8;">
+                            <MudIcon Icon="@Icons.Material.Filled.Timeline" Size="Size.Medium" />
+                        </div>
+                        <MudText Typo="Typo.subtitle1" Style="font-weight: 700;">Chronogramme d'Exécution</MudText>
+                    </div>
+                    <MudText Typo="Typo.body2" Class="text-muted mb-4">
+                        Consultation et mise à jour des étapes du chronogramme d'exécution des marchés.
+                    </MudText>
+                </MudCardContent>
+                <div class="pa-4 pt-0">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" OnClick="@(() => Navigation.NavigateTo("/Chronogramme"))" Class="rounded-pill">
+                        Accéder aux Chronogrammes
+                    </MudButton>
+                </div>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Elevation="2" Class="rounded-xl border h-100 d-flex flex-column justify-space-between">
+                <MudCardContent Class="pa-5">
+                    <div class="d-flex align-center mb-3">
+                        <div class="pa-3 rounded-lg mr-3" style="background: rgba(2, 132, 199, 0.1); color: #0284c7;">
+                            <MudIcon Icon="@Icons.Material.Filled.Task" Size="Size.Medium" />
+                        </div>
+                        <MudText Typo="Typo.subtitle1" Style="font-weight: 700;">Gestion des Activités</MudText>
+                    </div>
+                    <MudText Typo="Typo.body2" Class="text-muted mb-4">
+                        Suivi détaillé des sous-activités, livrables et avancements opérationnels.
+                    </MudText>
+                </MudCardContent>
+                <div class="pa-4 pt-0">
+                    <MudButton Variant="Variant.Filled" Color="Color.Info" FullWidth="true" OnClick="@(() => Navigation.NavigateTo("/Activite"))" Class="rounded-pill">
+                        Consulter les Activités
+                    </MudButton>
+                </div>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Elevation="2" Class="rounded-xl border h-100 d-flex flex-column justify-space-between">
+                <MudCardContent Class="pa-5">
+                    <div class="d-flex align-center mb-3">
+                        <div class="pa-3 rounded-lg mr-3" style="background: rgba(5, 150, 105, 0.1); color: #059669;">
+                            <MudIcon Icon="@Icons.Material.Filled.Assignment" Size="Size.Medium" />
+                        </div>
+                        <MudText Typo="Typo.subtitle1" Style="font-weight: 700;">Référentiel Missions</MudText>
+                    </div>
+                    <MudText Typo="Typo.body2" Class="text-muted mb-4">
+                        Pointage et vérification des données de missions et des identifiants associés.
+                    </MudText>
+                </MudCardContent>
+                <div class="pa-4 pt-0">
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" FullWidth="true" OnClick="@(() => Navigation.NavigateTo("/MISSION2"))" Class="rounded-pill">
+                        Accéder aux Missions
+                    </MudButton>
+                </div>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+</MudContainer>

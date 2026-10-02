@@ -1,97 +1,79 @@
-﻿@page "/"
+@page "/"
 @attribute [Authorize]
-@using BGTA.Server.Services
-@using BGTA.Server.Models
-@inject NavigationManager Navigation
-@inject IMenuService MenuService
-@inject AuthenticationStateProvider AuthStateProvider
+@using BGTA.Server.Components.Dashboards
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
-
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ILogger<Index> Logger
 
 <PageTitle>Tableau de Bord - BGTA</PageTitle>
 
-@if (dashboardLinks == null)
-{
-    <div class="d-flex justify-content-center mt-5">
-        <div class="spinner-border text-primary" role="status"></div>
-    </div>
-}
-else
-{
-    <AuthorizeView>
-        <Authorized>
-            <div class="container-fluid mt-4">
-                <div class="row text-center mb-4">
-                    <h1>Système Intégré de Gestion des Marchés Publics</h1>
-                    <p class="lead">Conforme au Code des Marchés Publics Béninois</p>
-                </div>
-
-                <div class="row g-4 justify-content-center">
-                    @foreach (var link in dashboardLinks)
-                    {
-                        <div class="col-md-4">
-                            <div class="card h-100 shadow-sm border-primary">
-                                <div class="card-header bg-primary text-white">
-                                    <h5 class="mb-0">@link.Text</h5>
-                                </div>
-                                <div class="card-body d-flex flex-column">
-                                    <p class="card-text flex-grow-1">@link.DescriptionMenu</p>
-                                    <button class="btn btn-primary w-100 mt-auto" @onclick="() => NavigateToItem(link.Url)">
-                                        <i class="@link.Icon me-2"></i>Accéder
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    }
-                </div>
+<AuthorizeView>
+    <Authorized>
+        @if (isLoading)
+        {
+            <div class="d-flex flex-column align-center justify-center py-12 mt-8">
+                <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" />
+                <MudText Typo="Typo.body1" Class="mt-4 text-muted">Initialisation de votre tableau de bord...</MudText>
             </div>
-        </Authorized>
-    </AuthorizeView>
-}
+        }
+        else
+        {
+            @switch (currentProfilId)
+            {
+                case 1:  // Administrateur
+                case 14: // ADMIN SOBEMAP
+                case 17: // DSI
+                    <AdminDashboard />
+                    break;
+
+                case 8:  // SERVICE FACTURATION
+                case 9:  // SERVICE COMPTABILITE
+                    <ComptabiliteDashboard />
+                    break;
+
+                case 2:  // POINTEUR
+                case 3:  // CHAUFFEUR
+                case 12: // SAH
+                case 13: // USERPOCKET
+                    <TerrainDashboard />
+                    break;
+
+                default: // Rôles métier standards, clients et repli
+                    <GenericDashboard />
+                    break;
+            }
+        }
+    </Authorized>
+</AuthorizeView>
 
 @code {
-    private List<MenuItem>? dashboardLinks;
+    private int currentProfilId = 0;
+    private bool isLoading = true;
 
     protected override async Task OnInitializedAsync()
     {
-        try 
+        try
         {
-            // 1. Récupérer l'identité
             var authState = await AuthStateProvider.GetAuthenticationStateAsync();
             var user = authState.User;
 
             if (user.Identity?.IsAuthenticated == true)
             {
                 var profilIdClaim = user.FindFirst("ProfilId")?.Value;
-                int.TryParse(profilIdClaim, out int profilId);
-
-                // 2. Appel au service avec protection contre les erreurs
-                var allMenus = await MenuService.GetMenuItemsAsync();
-                
-                // 3. Filtrage sécurisé
-                dashboardLinks = allMenus?.Where(m => m.MenuRaccourci).ToList() ?? new List<MenuItem>();
-            }
-            else
-            {
-                // Si non authentifié, on vide la liste
-                dashboardLinks = new List<MenuItem>();
+                if (int.TryParse(profilIdClaim, out int profilId))
+                {
+                    currentProfilId = profilId;
+                }
             }
         }
         catch (Exception ex)
         {
-            // Log de l'erreur côté serveur
-            Console.WriteLine($"Erreur chargement dashboard: {ex.Message}");
-            dashboardLinks = new List<MenuItem>(); // Évite le spinner infini
+            Logger.LogError(ex, "Erreur lors de l'aiguillage du tableau de bord");
         }
-    }
-
-    private void NavigateToItem(string? url)
-    {
-        if (!string.IsNullOrEmpty(url))
+        finally
         {
-            Navigation.NavigateTo(url);
+            isLoading = false;
         }
     }
-
 }
