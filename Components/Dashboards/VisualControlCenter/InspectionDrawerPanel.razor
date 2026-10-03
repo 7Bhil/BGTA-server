@@ -1,0 +1,133 @@
+@using MudBlazor
+@using static BGTA.Server.Components.Dashboards.VisualControlCenter.StylizedExceptionGrid
+
+<MudDrawer Open="@Open" OpenChanged="@OnOpenChanged" Anchor="Anchor.End" Elevation="5" Variant="DrawerVariant.Persistent" Style="width: 380px; background-color: #f8fafc;" Class="pa-4">
+    <MudDrawerHeader Class="pa-0 mb-3 d-flex align-center justify-space-between border-b pb-2">
+        <div class="d-flex align-center">
+            <MudIcon Icon="@Icons.Material.Filled.ManageSearch" Color="Color.Primary" Class="mr-2" />
+            <MudText Typo="Typo.subtitle1" Style="font-weight: 800; color: #0f172a;">PANNEAU D'INSPECTION</MudText>
+        </div>
+        <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Default" OnClick="CloseDrawer" Size="Size.Small" />
+    </MudDrawerHeader>
+
+    @if (SelectedItem != null)
+    {
+        <!-- Section 1: Détails du Châssis / Dossier -->
+        <MudPaper Elevation="1" Class="pa-3 mb-3 rounded-lg" Style="background-color: white;">
+            <MudText Typo="Typo.overline" Style="font-weight: 800; color: #64748b;">DÉTAILS DU CHÂSSIS</MudText>
+            <div class="d-flex justify-space-between align-center my-1">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">ID CHÂSSIS :</MudText>
+                <MudText Typo="Typo.body2" Style="font-weight: 700; font-family: monospace; color: #1e293b;">@SelectedItem.ChassisId</MudText>
+            </div>
+            <div class="d-flex justify-space-between align-center my-1">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Dimensions :</MudText>
+                <MudText Typo="Typo.body2" Style="font-weight: 600;">@SelectedItem.Dimensions</MudText>
+            </div>
+            <div class="d-flex justify-space-between align-center my-1">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Poids Total :</MudText>
+                <MudText Typo="Typo.body2" Style="font-weight: 600;">@SelectedItem.Poids</MudText>
+            </div>
+            <div class="d-flex justify-space-between align-center my-1">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Charge utile :</MudText>
+                <MudText Typo="Typo.body2" Style="font-weight: 600;">@SelectedItem.Contents</MudText>
+            </div>
+        </MudPaper>
+
+        <!-- Section 2: Historique Complet (Timeline) -->
+        <MudPaper Elevation="1" Class="pa-3 mb-3 rounded-lg" Style="background-color: white;">
+            <MudText Typo="Typo.overline" Style="font-weight: 800; color: #64748b;">HISTORIQUE COMPLET</MudText>
+            <MudTimeline TimelineOrientation="TimelineOrientation.Vertical" TimelinePosition="TimelinePosition.Start" Class="mt-2 pa-0">
+                <MudTimelineItem Color="Color.Success" Size="Size.Small">
+                    <ItemContent>
+                        <MudText Typo="Typo.caption" Style="font-weight: 700;">11:33 AM — Action VAQ reçue</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Saisie automatique Pointeur pro prem Les...</MudText>
+                    </ItemContent>
+                </MudTimelineItem>
+                <MudTimelineItem Color="Color.Warning" Size="Size.Small">
+                    <ItemContent>
+                        <MudText Typo="Typo.caption" Style="font-weight: 700;">11:35 AM — Contacter Entrée</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Alerte DTI manquante transmise au chauffeur.</MudText>
+                    </ItemContent>
+                </MudTimelineItem>
+                <MudTimelineItem Color="Color.Info" Size="Size.Small">
+                    <ItemContent>
+                        <MudText Typo="Typo.caption" Style="font-weight: 700;">11:55 AM — Action et vérification</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Suivi par le service de contrôle visuel.</MudText>
+                    </ItemContent>
+                </MudTimelineItem>
+            </MudTimeline>
+        </MudPaper>
+
+        <!-- Section 3: Preuves Visuelles / Inspection Photos -->
+        <MudPaper Elevation="1" Class="pa-3 mb-3 rounded-lg" Style="background-color: white;">
+            <MudText Typo="Typo.overline" Style="font-weight: 800; color: #64748b;">PHOTOS DE CONTRÔLE</MudText>
+            <div class="d-flex align-center gap-2 mt-2">
+                <MudPaper Elevation="2" Class="pa-1 rounded d-flex align-center justify-center" Style="background-color: #0f172a; color: white; width: 30%; height: 70px;">
+                    <MudIcon Icon="@Icons.Material.Filled.LocalShipping" Size="Size.Large" Color="Color.Info" />
+                </MudPaper>
+                <MudPaper Elevation="2" Class="pa-1 rounded d-flex align-center justify-center" Style="background-color: #1e293b; color: white; width: 30%; height: 70px;">
+                    <MudIcon Icon="@Icons.Material.Filled.CameraAlt" Size="Size.Large" Color="Color.Success" />
+                </MudPaper>
+                <MudPaper Elevation="2" Class="pa-1 rounded d-flex align-center justify-center" Style="background-color: #334155; color: white; width: 30%; height: 70px;">
+                    <MudIcon Icon="@Icons.Material.Filled.Verified" Size="Size.Large" Color="Color.Warning" />
+                </MudPaper>
+            </div>
+        </MudPaper>
+
+        <!-- Section 4: Actions Rapides -->
+        <div class="mt-4 d-flex flex-column gap-2">
+            <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.TaskAlt" FullWidth="true" Size="Size.Large" OnClick="ResolveAnomaly">
+                RÉSOUDRE ANOMALIE
+            </MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Dark" StartIcon="@Icons.Material.Filled.SwapHoriz" FullWidth="true" Size="Size.Medium" OnClick="TransferAnomaly">
+                TRANSFÉRER
+            </MudButton>
+        </div>
+    }
+    else
+    {
+        <div class="d-flex flex-column align-center justify-center h-100 pa-4 text-center">
+            <MudIcon Icon="@Icons.Material.Filled.TouchApp" Size="Size.Large" Color="Color.Secondary" Class="mb-2" />
+            <MudText Typo="Typo.body2" Color="Color.Secondary">Sélectionnez un dossier dans la grille pour afficher les détails et l'historique d'inspection.</MudText>
+        </div>
+    }
+</MudDrawer>
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback<bool> OpenChanged { get; set; }
+    [Parameter] public ChassisItem? SelectedItem { get; set; }
+    [Parameter] public EventCallback OnAnomalyResolved { get; set; }
+
+    private async Task CloseDrawer()
+    {
+        Open = false;
+        if (OpenChanged.HasDelegate)
+        {
+            await OpenChanged.InvokeAsync(false);
+        }
+    }
+
+    private async Task OnOpenChanged(bool value)
+    {
+        Open = value;
+        if (OpenChanged.HasDelegate)
+        {
+            await OpenChanged.InvokeAsync(value);
+        }
+    }
+
+    private async Task ResolveAnomaly()
+    {
+        if (OnAnomalyResolved.HasDelegate)
+        {
+            await OnAnomalyResolved.InvokeAsync();
+        }
+        await CloseDrawer();
+    }
+
+    private async Task TransferAnomaly()
+    {
+        await CloseDrawer();
+    }
+}

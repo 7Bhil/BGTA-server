@@ -1,0 +1,55 @@
+@using MudBlazor
+@using BGTA.Server.Components.Dashboards.VisualControlCenter
+@using static BGTA.Server.Components.Dashboards.VisualControlCenter.StylizedExceptionGrid
+
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pa-4">
+    <!-- 1. En-tête Dynamique d'État Global -->
+    <DynamicStatusHeader OnDarkModeChanged="HandleDarkModeToggle" />
+
+    <!-- 2. Cartes de Triage d'Anomalies (Métro-Moderne) -->
+    <AnomaliesTriageCards OnFilterChanged="HandleFilterSelected" />
+
+    <!-- 3. Grille d'Exceptions & Zone de Résolution -->
+    <StylizedExceptionGrid ActiveFilter="@ActiveFilter" OnItemSelected="HandleChassisSelected" OnActionExecuted="HandleActionExecuted" />
+
+    <!-- 4. Panneau Latéral d'Inspection & Détails -->
+    <InspectionDrawerPanel Open="@IsDrawerOpen" OpenChanged="@(val => IsDrawerOpen = val)" SelectedItem="@SelectedChassis" OnAnomalyResolved="HandleAnomalyResolved" />
+</MudContainer>
+
+@code {
+    private string ActiveFilter { get; set; } = string.Empty;
+    private bool IsDrawerOpen { get; set; } = false;
+    private ChassisItem? SelectedChassis { get; set; }
+
+    private void HandleFilterSelected(string filterName)
+    {
+        ActiveFilter = filterName;
+        Snackbar.Add($"Filtre appliqué : {filterName}", Severity.Info);
+    }
+
+    private void HandleChassisSelected(ChassisItem item)
+    {
+        SelectedChassis = item;
+        IsDrawerOpen = true;
+    }
+
+    private void HandleActionExecuted(ChassisItem item)
+    {
+        Snackbar.Add($"Action '{item.ActionLabel}' exécutée pour le châssis {item.ChassisId}", Severity.Success);
+    }
+
+    private void HandleAnomalyResolved()
+    {
+        if (SelectedChassis != null)
+        {
+            Snackbar.Add($"Anomalie résolue avec succès pour le dossier {SelectedChassis.ChassisId}", Severity.Success);
+        }
+    }
+
+    private void HandleDarkModeToggle(bool isDark)
+    {
+        Snackbar.Add(isDark ? "Mode Sombre activé" : "Mode Clair activé", Severity.Normal);
+    }
+}
