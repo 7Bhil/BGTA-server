@@ -102,13 +102,14 @@
                               Class="rounded-lg" />
 
                 @* 2. PROFIL (Affiché dynamiquement via MudSelect) *@
-                <div class="@(AvailableProfils.Any() ? "fade-in" : "d-none")">
+                <div class="@(AvailableProfils.Any() || IsLoadingProfils ? "fade-in" : "d-none")">
                     <MudSelect T="int" Label="Profil d'accès"
                                @bind-Value="loginModel.SelectedProfilId"
                                Variant="Variant.Outlined"
                                AnchorOrigin="Origin.BottomCenter"
                                AdornmentIcon="@Icons.Material.Filled.VerifiedUser"
                                AdornmentColor="Color.Info"
+                               Disabled="@IsLoadingProfils"
                                Required="true"
                                Class="rounded-lg">
                         <MudSelectItem T="int" Value="0">Choisir un profil...</MudSelectItem>
@@ -168,6 +169,7 @@
     private List<ProfilItem> AvailableProfils = new();
     private string ErrorMessage = string.Empty;
     private bool IsLoading = false;
+    private bool IsLoadingProfils = false;
     private bool IsSessionExpired = false;
     private string _lastUsernameChecked = string.Empty;
 
@@ -229,7 +231,7 @@
         if (AvailableProfils.Any() && !string.IsNullOrEmpty(_lastUsernameChecked))
             return;
 
-        IsLoading = true;
+        IsLoadingProfils = true;
 
         try
         {
@@ -270,7 +272,7 @@
         }
         finally
         {
-            IsLoading = false;
+            IsLoadingProfils = false;
         }
     }
 
