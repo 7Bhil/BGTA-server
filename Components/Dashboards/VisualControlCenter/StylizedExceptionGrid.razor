@@ -114,6 +114,7 @@
     [Parameter] public string ActiveFilter { get; set; } = string.Empty;
     [Parameter] public EventCallback<ChassisItem> OnItemSelected { get; set; }
     [Parameter] public EventCallback<ChassisItem> OnActionExecuted { get; set; }
+    [Parameter] public List<ChassisItem>? CustomItems { get; set; }
 
     private string SearchTerm { get; set; } = string.Empty;
 
@@ -144,7 +145,7 @@
         new ChassisItem { ChassisId = "014556191", Type = "Alertes Sortie", Statut = "Non/Erreur", Rampe = "—", Entree = "—", Sortie = "—", DerniereMaj = "20/02/2026, 13:53", ActionLabel = "Contacter Chauffeur" }
     };
 
-    private IEnumerable<ChassisItem> FilteredItems => Items.Where(i =>
+    private IEnumerable<ChassisItem> FilteredItems => (CustomItems ?? Items).Where(i =>
         (string.IsNullOrEmpty(ActiveFilter) || i.Type.Equals(ActiveFilter, StringComparison.OrdinalIgnoreCase)) &&
         (string.IsNullOrEmpty(SearchTerm) ||
          i.ChassisId.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase) ||

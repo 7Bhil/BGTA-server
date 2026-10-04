@@ -14,9 +14,9 @@
                                 <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Filled">Non reçus</MudChip>
                             </div>
                         </div>
-                        <MudText Typo="Typo.h3" Style="font-weight: 800;">3</MudText>
+                        <MudText Typo="Typo.h3" Style="font-weight: 800;">@RampeCount</MudText>
                     </div>
-                    <MudText Typo="Typo.body2" Style="font-weight: 600; opacity: 0.95;">3 VAQ Non reçus</MudText>
+                    <MudText Typo="Typo.body2" Style="font-weight: 600; opacity: 0.95;">@RampeCount VAQ Non reçus</MudText>
                 </MudCardContent>
             </MudCard>
         </div>
@@ -35,9 +35,9 @@
                                 <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled">DTI Manquants</MudChip>
                             </div>
                         </div>
-                        <MudText Typo="Typo.h3" Style="font-weight: 800;">5</MudText>
+                        <MudText Typo="Typo.h3" Style="font-weight: 800;">@EntreeCount</MudText>
                     </div>
-                    <MudText Typo="Typo.body2" Style="font-weight: 600; opacity: 0.95;">5 DTI Manquants</MudText>
+                    <MudText Typo="Typo.body2" Style="font-weight: 600; opacity: 0.95;">@EntreeCount DTI Manquants</MudText>
                 </MudCardContent>
             </MudCard>
         </div>
@@ -56,9 +56,9 @@
                                 <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled">Non validés</MudChip>
                             </div>
                         </div>
-                        <MudText Typo="Typo.h3" Style="font-weight: 800;">2</MudText>
+                        <MudText Typo="Typo.h3" Style="font-weight: 800;">@SortieCount</MudText>
                     </div>
-                    <MudText Typo="Typo.body2" Style="font-weight: 600; opacity: 0.95;">2 CEN Non validés</MudText>
+                    <MudText Typo="Typo.body2" Style="font-weight: 600; opacity: 0.95;">@SortieCount CEN Non validés</MudText>
                 </MudCardContent>
             </MudCard>
         </div>
@@ -67,6 +67,9 @@
 
 @code {
     [Parameter] public EventCallback<string> OnFilterChanged { get; set; }
+    [Parameter] public int RampeCount { get; set; } = 3;
+    [Parameter] public int EntreeCount { get; set; } = 5;
+    [Parameter] public int SortieCount { get; set; } = 2;
 
     private async Task SelectFilter(string filterName)
     {

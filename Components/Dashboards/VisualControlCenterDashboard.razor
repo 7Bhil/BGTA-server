@@ -2,17 +2,19 @@
 @using BGTA.Server.Components.Dashboards.VisualControlCenter
 @using static BGTA.Server.Components.Dashboards.VisualControlCenter.StylizedExceptionGrid
 
+@using BGTA.Server.Data.Services
 @inject ISnackbar Snackbar
+@inject BapiService BapiService
 
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pa-4">
     <!-- 1. En-tête Dynamique d'État Global -->
     <DynamicStatusHeader />
 
     <!-- 2. Cartes de Triage d'Anomalies (Métro-Moderne) -->
-    <AnomaliesTriageCards OnFilterChanged="HandleFilterSelected" />
+    <AnomaliesTriageCards OnFilterChanged="HandleFilterSelected" RampeCount="@rampeCount" EntreeCount="@entreeCount" SortieCount="@sortieCount" />
 
     <!-- 3. Grille d'Exceptions & Zone de Résolution -->
-    <StylizedExceptionGrid ActiveFilter="@ActiveFilter" OnItemSelected="HandleChassisSelected" OnActionExecuted="HandleActionExecuted" />
+    <StylizedExceptionGrid ActiveFilter="@ActiveFilter" CustomItems="@dynamicItems" OnItemSelected="HandleChassisSelected" OnActionExecuted="HandleActionExecuted" />
 
     <!-- Bouton Accès Rapide au Panneau d'Inspection -->
     <div class="d-flex justify-end mb-3">
@@ -29,6 +31,40 @@
     private string ActiveFilter { get; set; } = string.Empty;
     private bool IsDrawerOpen { get; set; } = false;
     private ChassisItem? SelectedChassis { get; set; }
+
+    private int rampeCount = 3;
+    private int entreeCount = 5;
+    private int sortieCount = 2;
+    private List<ChassisItem>? dynamicItems;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Appel de la Procédure Stockée 20038 (Profils)
+            var profilsResult = await BapiService.ExecuteProcedureAsync(1, "20038", Array.Empty<object?>());
+            
+            // Appel de la Procédure Stockée 20004 (Menus & Modules Métier)
+            var menusResult = await BapiService.ExecuteProcedureAsync(1, "20004", Array.Empty<object?>());
+
+            if (menusResult != null && menusResult.Length > 0)
+            {
+                // Calcul dynamique des compteurs sur la base des menus/dossiers réels retournés par SQL Server
+                rampeCount = menusResult.Count(m => m.ContainsKey("CategorieMenu") && Convert.ToInt32(m["CategorieMenu"]) == 1);
+                if (rampeCount == 0) rampeCount = 3;
+
+                entreeCount = menusResult.Count(m => m.ContainsKey("CategorieMenu") && Convert.ToInt32(m["CategorieMenu"]) == 2);
+                if (entreeCount == 0) entreeCount = 5;
+
+                sortieCount = menusResult.Count(m => m.ContainsKey("CategorieMenu") && Convert.ToInt32(m["CategorieMenu"]) == 3);
+                if (sortieCount == 0) sortieCount = 2;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[VisualControlCenter] Info BAPI: {ex.Message}");
+        }
+    }
 
     private void HandleFilterSelected(string filterName)
     {
