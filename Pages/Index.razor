@@ -24,7 +24,7 @@
                 case 1:  // Administrateur
                 case 14: // ADMIN SOBEMAP
                 case 17: // DSI
-                    <AdminDashboard />
+                    <VisualControlCenterDashboard />
                     break;
 
                 case 8:  // SERVICE FACTURATION
@@ -36,11 +36,11 @@
                 case 3:  // CHAUFFEUR
                 case 12: // SAH
                 case 13: // USERPOCKET
-                    <VisualControlCenterDashboard />
+                    <TerrainDashboard />
                     break;
 
-                default: // Rôles métier standards, clients et repli
-                    <VisualControlCenterDashboard />
+                default: // Rôles métier standards et repli
+                    <GenericDashboard />
                     break;
             }
         }
