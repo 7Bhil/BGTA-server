@@ -14,6 +14,13 @@
     <!-- 3. Grille d'Exceptions & Zone de Résolution -->
     <StylizedExceptionGrid ActiveFilter="@ActiveFilter" OnItemSelected="HandleChassisSelected" OnActionExecuted="HandleActionExecuted" />
 
+    <!-- Bouton Accès Rapide au Panneau d'Inspection -->
+    <div class="d-flex justify-end mb-3">
+        <MudButton Variant="Variant.Filled" Color="Color.Info" StartIcon="@Icons.Material.Filled.ManageSearch" OnClick="OpenInspectionDrawer" Class="rounded-pill">
+            PANNEAU D'INSPECTION
+        </MudButton>
+    </div>
+
     <!-- 4. Panneau Latéral d'Inspection & Détails -->
     <InspectionDrawerPanel Open="@IsDrawerOpen" OpenChanged="@(val => IsDrawerOpen = val)" SelectedItem="@SelectedChassis" OnAnomalyResolved="HandleAnomalyResolved" />
 </MudContainer>
@@ -27,6 +34,25 @@
     {
         ActiveFilter = filterName;
         Snackbar.Add($"Filtre appliqué : {filterName}", Severity.Info);
+    }
+
+    private void OpenInspectionDrawer()
+    {
+        if (SelectedChassis == null)
+        {
+            SelectedChassis = new ChassisItem
+            {
+                ChassisId = "014550208",
+                Type = "Alertes Rampe",
+                Statut = "Oui/Validé",
+                Rampe = "—",
+                Entree = "DTI",
+                Sortie = "—",
+                DerniereMaj = "20/02/2026, 13:54",
+                ActionLabel = "Valider VAQ"
+            };
+        }
+        IsDrawerOpen = true;
     }
 
     private void HandleChassisSelected(ChassisItem item)

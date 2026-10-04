@@ -90,18 +90,21 @@
             </MudTd>
             <MudTd DataLabel="DERNIÈRE MAJ">@context.DerniereMaj</MudTd>
             <MudTd DataLabel="ACTIONS" Style="text-align: center;">
-                @if (context.ActionLabel.Contains("Valider"))
-                {
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Filled.Check" OnClick="@(() => ExecuteAction(context))">
-                        @context.ActionLabel
-                    </MudButton>
-                }
-                else
-                {
-                    <MudButton Variant="Variant.Outlined" Color="Color.Dark" Size="Size.Small" StartIcon="@Icons.Material.Filled.Phone" OnClick="@(() => ExecuteAction(context))">
-                        @context.ActionLabel
-                    </MudButton>
-                }
+                <div class="d-flex align-center justify-center gap-1">
+                    <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small" OnClick="@(() => SelectForInspection(context))" />
+                    @if (context.ActionLabel.Contains("Valider"))
+                    {
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Filled.Check" OnClick="@(() => ExecuteAction(context))">
+                            @context.ActionLabel
+                        </MudButton>
+                    }
+                    else
+                    {
+                        <MudButton Variant="Variant.Outlined" Color="Color.Dark" Size="Size.Small" StartIcon="@Icons.Material.Filled.Phone" OnClick="@(() => ExecuteAction(context))">
+                            @context.ActionLabel
+                        </MudButton>
+                    }
+                </div>
             </MudTd>
         </RowTemplate>
     </MudTable>
@@ -151,6 +154,14 @@
 
     private void OnSearchChanged(string value) => SearchTerm = value;
     private void ResetFilter() => ActiveFilter = string.Empty;
+
+    private async Task SelectForInspection(ChassisItem item)
+    {
+        if (OnItemSelected.HasDelegate)
+        {
+            await OnItemSelected.InvokeAsync(item);
+        }
+    }
 
     private async Task OnRowClicked(TableRowClickEventArgs<ChassisItem> args)
     {
