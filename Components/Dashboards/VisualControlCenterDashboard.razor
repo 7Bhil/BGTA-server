@@ -6,7 +6,7 @@
 
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pa-4">
     <!-- 1. En-tête Dynamique d'État Global -->
-    <DynamicStatusHeader OnDarkModeChanged="HandleDarkModeToggle" />
+    <DynamicStatusHeader />
 
     <!-- 2. Cartes de Triage d'Anomalies (Métro-Moderne) -->
     <AnomaliesTriageCards OnFilterChanged="HandleFilterSelected" />
@@ -72,10 +72,5 @@
         {
             Snackbar.Add($"Anomalie résolue avec succès pour le dossier {SelectedChassis.ChassisId}", Severity.Success);
         }
-    }
-
-    private void HandleDarkModeToggle(bool isDark)
-    {
-        Snackbar.Add(isDark ? "Mode Sombre activé" : "Mode Clair activé", Severity.Normal);
     }
 }

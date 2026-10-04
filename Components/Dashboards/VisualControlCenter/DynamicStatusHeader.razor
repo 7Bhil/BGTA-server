@@ -24,34 +24,18 @@
             </MudPaper>
         </MudItem>
 
-        <!-- Right System Info & Controls -->
+        <!-- Right System Info -->
         <MudItem xs="12" md="3" Class="d-flex align-center justify-end">
-            <div class="text-right mr-3">
+            <div class="text-right">
                 <MudText Typo="Typo.body2" Style="font-weight: 600; color: #f8fafc;">@CurrentTime</MudText>
                 <MudText Typo="Typo.caption" Style="color: #94a3b8;">@CurrentDate</MudText>
             </div>
-            
-            <MudTooltip Text="Mode Sombre / Clair">
-                <MudSwitch T="bool" Value="@IsDarkMode" ValueChanged="@OnDarkModeToggled" Color="Color.Primary" Class="ml-2" />
-            </MudTooltip>
         </MudItem>
     </MudGrid>
 </MudPaper>
 
 @code {
-    [Parameter] public EventCallback<bool> OnDarkModeChanged { get; set; }
-    
     private string HealthStatusText { get; set; } = "FLUIDE";
     private string CurrentTime { get; set; } = DateTime.Now.ToString("HH:mm:ss");
     private string CurrentDate { get; set; } = DateTime.Now.ToString("dd/MM/yyyy");
-    private bool IsDarkMode { get; set; } = false;
-
-    private async Task OnDarkModeToggled(bool value)
-    {
-        IsDarkMode = value;
-        if (OnDarkModeChanged.HasDelegate)
-        {
-            await OnDarkModeChanged.InvokeAsync(IsDarkMode);
-        }
-    }
 }
