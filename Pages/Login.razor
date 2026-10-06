@@ -96,6 +96,7 @@
                               Adornment="Adornment.Start"
                               AdornmentIcon="@Icons.Material.Filled.Person"
                               AdornmentColor="Color.Primary"
+                              Immediate="true"
                               OnBlur="OnUsernameBlur"
                               @oninput="ClearMessages"
                               Required="true"
@@ -199,15 +200,13 @@
         public string LibProfil { get; set; } = "";
     }
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
         var uri = Navigation.Uri;
         if (uri.Contains("expired=true", StringComparison.OrdinalIgnoreCase))
         {
             IsSessionExpired = true;
         }
-
-        await LoadProfilsAsync();
     }
 
     private void ClearMessages()
@@ -221,14 +220,14 @@
         var currentUsername = loginModel.Username?.Trim() ?? "";
 
         if (string.IsNullOrWhiteSpace(currentUsername))
+        {
+            AvailableProfils.Clear();
+            loginModel.SelectedProfilId = 0;
+            _lastUsernameChecked = string.Empty;
             return;
+        }
 
-        await LoadProfilsAsync();
-    }
-
-    private async Task LoadProfilsAsync()
-    {
-        if (AvailableProfils.Any() && !string.IsNullOrEmpty(_lastUsernameChecked))
+        if (currentUsername.Equals(_lastUsernameChecked, StringComparison.OrdinalIgnoreCase))
             return;
 
         IsLoadingProfils = true;
@@ -237,8 +236,16 @@
         {
             var result = await BapiService.ExecuteProcedureAsync(
                 1,
-                "20038",
-                Array.Empty<object?>());
+                "PS20020",
+                new object?[] { currentUsername });
+
+            if ((result == null || result.Length == 0) && !currentUsername.EndsWith("TVS", StringComparison.OrdinalIgnoreCase))
+            {
+                result = await BapiService.ExecuteProcedureAsync(
+                    1,
+                    "PS20020",
+                    new object?[] { currentUsername + "TVS" });
+            }
 
             if (result != null && result.Length > 0)
             {
@@ -254,21 +261,43 @@
                         LibProfil = r.GetValueOrDefault("LibProfil")?.ToString() ?? ""
                     })
                     .Where(x => x.IdProfil > 0)
+                    .GroupBy(p => p.IdProfil)
+                    .Select(g => g.First())
                     .ToList();
 
-                if (AvailableProfils.Any() && loginModel.SelectedProfilId == 0)
+                if (AvailableProfils.Any())
                 {
-                    loginModel.SelectedProfilId = AvailableProfils[0].IdProfil;
-                }
+                    var defaultProfilIdStr = result[0].GetValueOrDefault("IdProfilParDefaut")?.ToString();
+                    if (int.TryParse(defaultProfilIdStr, out int defId) && AvailableProfils.Any(p => p.IdProfil == defId))
+                    {
+                        loginModel.SelectedProfilId = defId;
+                    }
+                    else
+                    {
+                        loginModel.SelectedProfilId = AvailableProfils[0].IdProfil;
+                    }
 
-                _lastUsernameChecked = loginModel.Username ?? "loaded";
-                ClearMessages();
+                    _lastUsernameChecked = currentUsername;
+                    ClearMessages();
+                }
+                else
+                {
+                    AvailableProfils.Clear();
+                    loginModel.SelectedProfilId = 0;
+                    ErrorMessage = "Aucun profil d'accès associé à cet utilisateur.";
+                }
+            }
+            else
+            {
+                AvailableProfils.Clear();
+                loginModel.SelectedProfilId = 0;
+                ErrorMessage = "Identifiant non reconnu.";
             }
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Erreur lors du chargement des profils");
-            ErrorMessage = "Impossible de charger la liste des profils.";
+            Logger.LogError(ex, "Erreur lors de la récupération des profils pour {User}", currentUsername);
+            ErrorMessage = "Impossible de valider l'identifiant.";
         }
         finally
         {
@@ -278,17 +307,30 @@
 
     private async Task HandleLogin()
     {
-        // Forcer la vérification si le champ a été rempli sans perte de focus
-        if (AvailableProfils.Count == 0 &&
-            !string.IsNullOrWhiteSpace(loginModel.Username))
+        if (string.IsNullOrWhiteSpace(loginModel.Username))
+        {
+            ErrorMessage = "Veuillez renseigner votre identifiant.";
+            return;
+        }
+
+        // Si les profils n'ont pas encore été chargés (ex: validation directe avec Entrée)
+        if (AvailableProfils.Count == 0)
         {
             await OnUsernameBlur();
         }
 
-        if (AvailableProfils.Any() &&
-            loginModel.SelectedProfilId == 0)
+        if (AvailableProfils.Count == 0)
         {
-            ErrorMessage = "Veuillez sélectionner un profil.";
+            if (string.IsNullOrEmpty(ErrorMessage))
+            {
+                ErrorMessage = "Identifiant non reconnu ou aucun profil associé.";
+            }
+            return;
+        }
+
+        if (loginModel.SelectedProfilId == 0)
+        {
+            ErrorMessage = "Veuillez sélectionner un profil d'accès.";
             return;
         }
 
@@ -296,21 +338,13 @@
 
         try
         {
-            if (!string.IsNullOrWhiteSpace(loginModel.Username) && loginModel.SelectedProfilId > 0)
-            {
-                TransitionService.Username = loginModel.Username;
-                TransitionService.ProfilId = loginModel.SelectedProfilId;
+            TransitionService.Username = loginModel.Username.Trim();
+            TransitionService.ProfilId = loginModel.SelectedProfilId;
 
-                Navigation.NavigateTo("/Account/LoginProcess", true);
-            }
-            else
-            {
-                ErrorMessage = "Veuillez renseigner votre identifiant et votre profil.";
-            }
+            Navigation.NavigateTo("/Account/LoginProcess", true);
         }
         catch (NavigationException)
         {
-            // Blazor lève NavigationException pour forcer la redirection HTTP, on laisse passer
             throw;
         }
         catch (Exception ex)
