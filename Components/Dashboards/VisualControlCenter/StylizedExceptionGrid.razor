@@ -16,7 +16,7 @@
         <MudTextField T="string" Value="@SearchTerm" ValueChanged="@OnSearchChanged" Placeholder="Rechercher Châssis, Type, Statut..." Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0" Style="max-width: 300px;" />
     </div>
 
-    <MudTable Items="@FilteredItems" Hover="true" Striped="true" Dense="true" OnRowClick="@OnRowClicked" T="ChassisItem" RowClass="cursor-pointer">
+    <MudTable Items="@FilteredItems" Hover="true" Striped="true" Dense="true" OnRowClick="@OnRowClicked" T="ChassisItem" RowClass="cursor-pointer" Loading="@IsLoading" LoadingProgressColor="Color.Primary" RowsPerPage="25">
         <HeaderContent>
             <MudTh>CHÂSSIS ID</MudTh>
             <MudTh>TYPE</MudTh>
@@ -27,6 +27,12 @@
             <MudTh>DERNIÈRE MAJ</MudTh>
             <MudTh Style="text-align: center;">ACTIONS</MudTh>
         </HeaderContent>
+        <LoadingContent>
+            <MudText Typo="Typo.body2" Class="pa-4 text-center" Style="color: #64748b;">Chargement des données opérationnelles...</MudText>
+        </LoadingContent>
+        <NoRecordsContent>
+            <MudText Typo="Typo.body2" Class="pa-4 text-center" Style="color: #64748b;">Aucune exception opérationnelle détectée.</MudText>
+        </NoRecordsContent>
         <RowTemplate>
             <MudTd DataLabel="CHÂSSIS ID">
                 <MudText Typo="Typo.body2" Style="font-weight: 700; font-family: monospace; color: #0f172a;">@context.ChassisId</MudText>
@@ -111,6 +117,9 @@
                 </div>
             </MudTd>
         </RowTemplate>
+        <PagerContent>
+            <MudTablePager PageSizeOptions="new int[] { 10, 25, 50, 100 }" RowsPerPageString="Lignes par page :" InfoFormat="{first_item}-{last_item} sur {all_items}" />
+        </PagerContent>
     </MudTable>
 </MudPaper>
 
@@ -146,12 +155,9 @@
         public string Manifeste { get; set; } = string.Empty;
     }
 
-    private List<ChassisItem> Items = new()
-    {
-        new ChassisItem { ChassisId = "039208", ChassisLong = "JTHCF5C27A5039208", Modele = "LEXUS IS 250", Categorie = "CAR", Poids = "1642.00 kg", Pointeur = "KEHOUNDE ROMUALD", PointeurBadge = "K0162", Chauffeur = "SOSSOUGOHOUN SATURNIN", ChauffeurBadge = "D2213", Type = "Alertes Rampe", Statut = "Oui/Validé", Rampe = "Oui", Entree = "DTI", Sortie = "Non validés", DerniereMaj = "31/07/2026, 21:35", ActionLabel = "Valider VAQ" },
-        new ChassisItem { ChassisId = "041089", ChassisLong = "JTMRF4DV2B5041089", Modele = "TOYOTA RAV4", Categorie = "CAR", Poids = "1562.00 kg", Pointeur = "KEHOUNDE ROMUALD", PointeurBadge = "K0162", Chauffeur = "SOSSOUGOHOUN SATURNIN", ChauffeurBadge = "D2213", Type = "Bloqués Entrée", Statut = "Non/Erreur", Rampe = "—", Entree = "Entrée", Sortie = "Non validés", DerniereMaj = "31/07/2026, 21:35", ActionLabel = "Contacter Chauffeur" },
-        new ChassisItem { ChassisId = "005608", ChassisLong = "JTJHA31U040005608", Modele = "LEXUS RX 330", Categorie = "CAR", Poids = "1751.00 kg", Pointeur = "KEHOUNDE ROMUALD", PointeurBadge = "K0162", Chauffeur = "SOSSOUGOHOUN SATURNIN", ChauffeurBadge = "D2213", Type = "Alertes Sortie", Statut = "Inconnu", Rampe = "Oui", Entree = "—", Sortie = "CEN", DerniereMaj = "31/07/2026, 21:35", ActionLabel = "Valider VAQ" }
-    };
+    [Parameter] public bool IsLoading { get; set; } = false;
+
+    private List<ChassisItem> Items = new();
 
     private IEnumerable<ChassisItem> FilteredItems => (CustomItems ?? Items).Where(i =>
         (string.IsNullOrEmpty(ActiveFilter) || i.Type.Equals(ActiveFilter, StringComparison.OrdinalIgnoreCase)) &&

@@ -14,7 +14,7 @@
     <AnomaliesTriageCards OnFilterChanged="HandleFilterSelected" RampeCount="@rampeCount" EntreeCount="@entreeCount" SortieCount="@sortieCount" />
 
     <!-- 3. Grille d'Exceptions & Zone de Résolution -->
-    <StylizedExceptionGrid ActiveFilter="@ActiveFilter" CustomItems="@dynamicItems" OnItemSelected="HandleChassisSelected" OnActionExecuted="HandleActionExecuted" />
+    <StylizedExceptionGrid ActiveFilter="@ActiveFilter" CustomItems="@dynamicItems" IsLoading="@isLoading" OnItemSelected="HandleChassisSelected" OnActionExecuted="HandleActionExecuted" />
 
     <!-- Bouton Accès Rapide au Panneau d'Inspection -->
     <div class="d-flex justify-end mb-3">
@@ -31,6 +31,7 @@
     private string ActiveFilter { get; set; } = string.Empty;
     private bool IsDrawerOpen { get; set; } = false;
     private ChassisItem? SelectedChassis { get; set; }
+    private bool isLoading = true;
 
     private int rampeCount = 0;
     private int entreeCount = 0;
@@ -136,6 +137,10 @@
         catch (Exception ex)
         {
             Console.WriteLine($"[VisualControlCenter] Erreur BAPI: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
         }
     }
 
