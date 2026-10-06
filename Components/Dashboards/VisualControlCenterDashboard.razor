@@ -8,7 +8,7 @@
 
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pa-4">
     <!-- 1. En-tête Dynamique d'État Global -->
-    <DynamicStatusHeader />
+    <DynamicStatusHeader HealthPercent="@healthPercent" HealthStatusText="@healthStatusText" TotalVehicules="@rampeCount" />
 
     <!-- 2. Cartes de Triage d'Anomalies (Métro-Moderne) -->
     <AnomaliesTriageCards OnFilterChanged="HandleFilterSelected" RampeCount="@rampeCount" EntreeCount="@entreeCount" SortieCount="@sortieCount" />
@@ -32,37 +32,110 @@
     private bool IsDrawerOpen { get; set; } = false;
     private ChassisItem? SelectedChassis { get; set; }
 
-    private int rampeCount = 3;
-    private int entreeCount = 5;
-    private int sortieCount = 2;
+    private int rampeCount = 0;
+    private int entreeCount = 0;
+    private int sortieCount = 0;
+    private int healthPercent = 88;
+    private string healthStatusText = "FLUIDE";
     private List<ChassisItem>? dynamicItems;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            // Appel de la Procédure Stockée 20038 (Profils)
-            var profilsResult = await BapiService.ExecuteProcedureAsync(1, "20038", Array.Empty<object?>());
-            
-            // Appel de la Procédure Stockée 20004 (Menus & Modules Métier)
-            var menusResult = await BapiService.ExecuteProcedureAsync(1, "20004", Array.Empty<object?>());
+            // Appel de la Procédure Stockée existante PS310493 (PS_DASHBOARD_OPERATIONS_GRID)
+            var dataResult = await BapiService.ExecuteProcedureAsync(1, "PS310493", new object?[] { 1 });
 
-            if (menusResult != null && menusResult.Length > 0)
+            if (dataResult != null && dataResult.Length > 0)
             {
-                // Calcul dynamique des compteurs sur la base des menus/dossiers réels retournés par SQL Server
-                rampeCount = menusResult.Count(m => m.ContainsKey("CategorieMenu") && Convert.ToInt32(m["CategorieMenu"]) == 1);
-                if (rampeCount == 0) rampeCount = 3;
+                // Calcul des compteurs d'état opérationnel sur les données réelles retournées
+                rampeCount = dataResult.Count(r => r.GetValueOrDefault("Rampe_VAQ_Badge")?.ToString() != "Oui");
+                entreeCount = dataResult.Count(r => r.GetValueOrDefault("Entre_DTI_Badge")?.ToString() != "DTI-OK");
+                sortieCount = dataResult.Count(r => r.GetValueOrDefault("Sortie_CEN_Badge")?.ToString() != "CEN-OK");
 
-                entreeCount = menusResult.Count(m => m.ContainsKey("CategorieMenu") && Convert.ToInt32(m["CategorieMenu"]) == 2);
-                if (entreeCount == 0) entreeCount = 5;
+                if (dataResult.Length > 0)
+                {
+                    healthPercent = Math.Clamp(100 - (sortieCount * 100 / dataResult.Length), 60, 99);
+                }
 
-                sortieCount = menusResult.Count(m => m.ContainsKey("CategorieMenu") && Convert.ToInt32(m["CategorieMenu"]) == 3);
-                if (sortieCount == 0) sortieCount = 2;
+                dynamicItems = new List<ChassisItem>();
+
+                // Alimentation de la grille d'exceptions avec les véhicules et intervenants réels
+                foreach (var row in dataResult.Take(200))
+                {
+                    var isVaqOk = row.GetValueOrDefault("Rampe_VAQ_Badge")?.ToString() == "Oui";
+                    var isDtiOk = row.GetValueOrDefault("Entre_DTI_Badge")?.ToString() == "DTI-OK";
+                    var isCenOk = row.GetValueOrDefault("Sortie_CEN_Badge")?.ToString() == "CEN-OK";
+
+                    string type;
+                    string statut;
+                    string action;
+
+                    if (!isVaqOk)
+                    {
+                        type = "Alertes Rampe";
+                        statut = "Non/Erreur";
+                        action = "Valider VAQ";
+                    }
+                    else if (!isDtiOk)
+                    {
+                        type = "Bloqués Entrée";
+                        statut = "Inconnu";
+                        action = "Contacter Chauffeur";
+                    }
+                    else if (!isCenOk)
+                    {
+                        type = "Alertes Sortie";
+                        statut = "Non/Erreur";
+                        action = "Valider Sortie";
+                    }
+                    else
+                    {
+                        type = "Validés";
+                        statut = "Oui/Validé";
+                        action = "Consulter";
+                    }
+
+                    var rampeDateStr = row.GetValueOrDefault("Rampe_Date")?.ToString();
+                    string derniereMaj = "—";
+                    if (!string.IsNullOrEmpty(rampeDateStr) && DateTime.TryParse(rampeDateStr, out var dt))
+                    {
+                        derniereMaj = dt.ToString("dd/MM/yyyy, HH:mm");
+                    }
+
+                    var item = new ChassisItem
+                    {
+                        ChassisId = row.GetValueOrDefault("NumChassisCourt")?.ToString() ?? "",
+                        ChassisLong = row.GetValueOrDefault("NumChassisLong")?.ToString() ?? "",
+                        Type = type,
+                        Statut = statut,
+                        Rampe = isVaqOk ? "Oui" : "—",
+                        Entree = isDtiOk ? "Entrée" : "DTI",
+                        Sortie = isCenOk ? "CEN" : "Non validés",
+                        DerniereMaj = derniereMaj,
+                        ActionLabel = action,
+                        Modele = row.GetValueOrDefault("Model")?.ToString() ?? "",
+                        Categorie = row.GetValueOrDefault("Categorie")?.ToString() ?? "",
+                        Dimensions = "450 x 180 cm",
+                        Poids = "1 500 kg",
+                        Contents = $"Débarquement navire {row.GetValueOrDefault("LibelleNavire")} (Manifeste {row.GetValueOrDefault("CodeManifeste")})",
+                        Pointeur = row.GetValueOrDefault("Rampe_Pointeur")?.ToString() ?? "—",
+                        Chauffeur = row.GetValueOrDefault("Rampe_Chauffeur")?.ToString() ?? "—",
+                        Navire = row.GetValueOrDefault("LibelleNavire")?.ToString() ?? "",
+                        Manifeste = row.GetValueOrDefault("CodeManifeste")?.ToString() ?? ""
+                    };
+                    dynamicItems.Add(item);
+                }
+
+                if (dynamicItems.Count > 0)
+                {
+                    SelectedChassis = dynamicItems[0];
+                }
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[VisualControlCenter] Info BAPI: {ex.Message}");
+            Console.WriteLine($"[VisualControlCenter] Erreur BAPI: {ex.Message}");
         }
     }
 

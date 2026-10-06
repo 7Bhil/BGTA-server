@@ -18,24 +18,29 @@
                     <MudText Typo="Typo.subtitle2" Style="font-weight: 700; color: #10b981; text-transform: uppercase;">
                         SANTÉ GLOBALE DE LA JOURNÉE : @HealthStatusText
                     </MudText>
-                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled">FLUIDE (85%)</MudChip>
+                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled">FLUIDE (@HealthPercent%)</MudChip>
                 </div>
-                <MudProgressLinear Color="Color.Success" Value="85" Class="w-100 rounded-pill" Style="height: 6px;" />
+                <MudProgressLinear Color="Color.Success" Value="@HealthPercent" Class="w-100 rounded-pill" Style="height: 6px;" />
             </MudPaper>
         </MudItem>
 
         <!-- Right System Info -->
         <MudItem xs="12" md="3" Class="d-flex align-center justify-end">
             <div class="text-right">
-                <MudText Typo="Typo.body2" Style="font-weight: 600; color: #f8fafc;">@CurrentTime</MudText>
-                <MudText Typo="Typo.caption" Style="color: #94a3b8;">@CurrentDate</MudText>
+                <MudText Typo="Typo.body2" Style="font-weight: 600; color: #f8fafc;">
+                    @(TotalVehicules > 0 ? $"{TotalVehicules} VÉHICULES ACTIFS" : CurrentTime)
+                </MudText>
+                <MudText Typo="Typo.caption" Style="color: #94a3b8;">@CurrentDate - @CurrentTime</MudText>
             </div>
         </MudItem>
     </MudGrid>
 </MudPaper>
 
 @code {
-    private string HealthStatusText { get; set; } = "FLUIDE";
+    [Parameter] public string HealthStatusText { get; set; } = "FLUIDE";
+    [Parameter] public int HealthPercent { get; set; } = 85;
+    [Parameter] public int TotalVehicules { get; set; } = 0;
+
     private string CurrentTime { get; set; } = DateTime.Now.ToString("HH:mm:ss");
     private string CurrentDate { get; set; } = DateTime.Now.ToString("dd/MM/yyyy");
 }
