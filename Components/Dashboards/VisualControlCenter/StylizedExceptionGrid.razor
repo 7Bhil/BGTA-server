@@ -16,7 +16,7 @@
         <MudTextField T="string" Value="@SearchTerm" ValueChanged="@OnSearchChanged" Placeholder="Rechercher Châssis, Type, Statut..." Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0" Style="max-width: 300px;" />
     </div>
 
-    <MudTable Items="@FilteredItems" Hover="true" Striped="true" Dense="true" OnRowClick="@OnRowClicked" T="ChassisItem" RowClass="cursor-pointer" Loading="@IsLoading" LoadingProgressColor="Color.Primary" RowsPerPage="25">
+    <MudTable Items="@FilteredItems" Hover="true" Striped="true" Dense="true" OnRowClick="@OnRowClicked" T="ChassisItem" RowClass="cursor-pointer" Loading="@IsLoading" LoadingProgressColor="Color.Primary">
         <HeaderContent>
             <MudTh>CHÂSSIS ID</MudTh>
             <MudTh>TYPE</MudTh>
@@ -117,9 +117,6 @@
                 </div>
             </MudTd>
         </RowTemplate>
-        <PagerContent>
-            <MudTablePager PageSizeOptions="new int[] { 10, 25, 50, 100 }" RowsPerPageString="Lignes par page :" InfoFormat="{first_item}-{last_item} sur {all_items}" />
-        </PagerContent>
     </MudTable>
 </MudPaper>
 

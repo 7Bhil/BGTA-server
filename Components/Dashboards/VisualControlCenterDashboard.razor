@@ -6,6 +6,9 @@
 @inject ISnackbar Snackbar
 @inject BapiService BapiService
 
+@using Microsoft.Extensions.Caching.Memory
+@inject IMemoryCache MemoryCache
+
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pa-4">
     <!-- 1. En-tête Dynamique d'État Global -->
     <DynamicStatusHeader HealthPercent="@healthPercent" HealthStatusText="@healthStatusText" TotalVehicules="@rampeCount" />
@@ -32,6 +35,7 @@
     private bool IsDrawerOpen { get; set; } = false;
     private ChassisItem? SelectedChassis { get; set; }
     private bool isLoading = true;
+    private bool hasTriggeredLoad = false;
 
     private int rampeCount = 0;
     private int entreeCount = 0;
@@ -40,29 +44,67 @@
     private string healthStatusText = "FLUIDE";
     private List<ChassisItem>? dynamicItems;
 
-    protected override async Task OnInitializedAsync()
+    private record DashboardCachePayload(
+        int RampeCount,
+        int EntreeCount,
+        int SortieCount,
+        int HealthPercent,
+        string HealthStatusText,
+        List<ChassisItem> Items);
+
+    private const string CacheKey = "DASHBOARD_OPERATIONS_DATA";
+
+    protected override void OnInitialized()
+    {
+        // 1. Si un cache existe, on l'affiche immédiatement à la première milliseconde
+        if (MemoryCache.TryGetValue(CacheKey, out DashboardCachePayload? cached) && cached != null)
+        {
+            rampeCount = cached.RampeCount;
+            entreeCount = cached.EntreeCount;
+            sortieCount = cached.SortieCount;
+            healthPercent = cached.HealthPercent;
+            healthStatusText = cached.HealthStatusText;
+            dynamicItems = cached.Items;
+            if (dynamicItems.Count > 0)
+            {
+                SelectedChassis = dynamicItems[0];
+            }
+            isLoading = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !hasTriggeredLoad)
+        {
+            hasTriggeredLoad = true;
+
+            // Si déjà en cache, l'actualisation se fait silencieusement en arrière-plan sans bloquer
+            // Sinon, l'indicateur de chargement reste actif jusqu'à réception
+            await LoadDashboardDataAsync();
+        }
+    }
+
+    private async Task LoadDashboardDataAsync()
     {
         try
         {
-            // Appel de la Procédure Stockée existante PS310493 (PS_DASHBOARD_OPERATIONS_GRID)
+            // Appel asynchrone non-bloquant de la procédure stockée existante PS310493
             var dataResult = await BapiService.ExecuteProcedureAsync(1, "PS310493", new object?[] { 1 });
 
             if (dataResult != null && dataResult.Length > 0)
             {
-                // Calcul des compteurs d'état opérationnel sur les données réelles retournées
                 rampeCount = dataResult.Count(r => r.GetValueOrDefault("Rampe_VAQ_Badge")?.ToString() != "Oui");
                 entreeCount = dataResult.Count(r => r.GetValueOrDefault("Entre_DTI_Badge")?.ToString() != "DTI-OK");
                 sortieCount = dataResult.Count(r => r.GetValueOrDefault("Sortie_CEN_Badge")?.ToString() != "CEN-OK");
 
-                if (dataResult.Length > 0)
-                {
-                    healthPercent = Math.Clamp(100 - (sortieCount * 100 / dataResult.Length), 60, 99);
-                }
+                healthPercent = Math.Clamp(100 - (sortieCount * 100 / dataResult.Length), 60, 99);
+                healthStatusText = healthPercent >= 85 ? "FLUIDE" : (healthPercent >= 70 ? "ATTENTION" : "CRITIQUE");
 
-                dynamicItems = new List<ChassisItem>();
+                var items = new List<ChassisItem>();
 
-                // Alimentation de la grille d'exceptions avec les véhicules et intervenants réels
-                foreach (var row in dataResult.Take(200))
+                // Extraction des véhicules opérationnels
+                foreach (var row in dataResult.Take(250))
                 {
                     var isVaqOk = row.GetValueOrDefault("Rampe_VAQ_Badge")?.ToString() == "Oui";
                     var isDtiOk = row.GetValueOrDefault("Entre_DTI_Badge")?.ToString() == "DTI-OK";
@@ -125,13 +167,18 @@
                         Navire = row.GetValueOrDefault("LibelleNavire")?.ToString() ?? "",
                         Manifeste = row.GetValueOrDefault("CodeManifeste")?.ToString() ?? ""
                     };
-                    dynamicItems.Add(item);
+                    items.Add(item);
                 }
 
-                if (dynamicItems.Count > 0)
+                dynamicItems = items;
+                if (dynamicItems.Count > 0 && SelectedChassis == null)
                 {
                     SelectedChassis = dynamicItems[0];
                 }
+
+                // Mise en mémoire cache pour 5 minutes
+                var payload = new DashboardCachePayload(rampeCount, entreeCount, sortieCount, healthPercent, healthStatusText, dynamicItems);
+                MemoryCache.Set(CacheKey, payload, TimeSpan.FromMinutes(5));
             }
         }
         catch (Exception ex)
@@ -141,6 +188,7 @@
         finally
         {
             isLoading = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
