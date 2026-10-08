@@ -1,0 +1,238 @@
+@using MudBlazor
+@using BGTA.Server.Components.Dashboards.VisualControlCenter
+@using static BGTA.Server.Components.Dashboards.VisualControlCenter.StylizedExceptionGrid
+
+@using BGTA.Server.Data.Services
+@inject ISnackbar Snackbar
+@inject BapiService BapiService
+
+@using Microsoft.Extensions.Caching.Memory
+@inject IMemoryCache MemoryCache
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pa-4">
+    <!-- 1. En-tête Dynamique d'État Global -->
+    <DynamicStatusHeader HealthPercent="@healthPercent" HealthStatusText="@healthStatusText" TotalVehicules="@rampeCount" />
+
+    <!-- 2. Cartes de Triage d'Anomalies (Métro-Moderne) -->
+    <AnomaliesTriageCards OnFilterChanged="HandleFilterSelected" RampeCount="@rampeCount" EntreeCount="@entreeCount" SortieCount="@sortieCount" />
+
+    <!-- 3. Grille d'Exceptions & Zone de Résolution -->
+    <StylizedExceptionGrid ActiveFilter="@ActiveFilter" CustomItems="@dynamicItems" IsLoading="@isLoading" OnItemSelected="HandleChassisSelected" OnActionExecuted="HandleActionExecuted" />
+
+    <!-- Bouton Accès Rapide au Panneau d'Inspection -->
+    <div class="d-flex justify-end mb-3">
+        <MudButton Variant="Variant.Filled" Color="Color.Info" StartIcon="@Icons.Material.Filled.ManageSearch" OnClick="OpenInspectionDrawer" Class="rounded-pill">
+            PANNEAU D'INSPECTION
+        </MudButton>
+    </div>
+
+    <!-- 4. Panneau Latéral d'Inspection & Détails -->
+    <InspectionDrawerPanel Open="@IsDrawerOpen" OpenChanged="@(val => IsDrawerOpen = val)" SelectedItem="@SelectedChassis" OnAnomalyResolved="HandleAnomalyResolved" />
+</MudContainer>
+
+@code {
+    private string ActiveFilter { get; set; } = string.Empty;
+    private bool IsDrawerOpen { get; set; } = false;
+    private ChassisItem? SelectedChassis { get; set; }
+    private bool isLoading = true;
+    private bool hasTriggeredLoad = false;
+
+    private int rampeCount = 0;
+    private int entreeCount = 0;
+    private int sortieCount = 0;
+    private int healthPercent = 88;
+    private string healthStatusText = "FLUIDE";
+    private List<ChassisItem>? dynamicItems;
+
+    private record DashboardCachePayload(
+        int RampeCount,
+        int EntreeCount,
+        int SortieCount,
+        int HealthPercent,
+        string HealthStatusText,
+        List<ChassisItem> Items);
+
+    private const string CacheKey = "DASHBOARD_OPERATIONS_DATA";
+
+    protected override void OnInitialized()
+    {
+        // 1. Si un cache existe, on l'affiche immédiatement à la première milliseconde
+        if (MemoryCache.TryGetValue(CacheKey, out DashboardCachePayload? cached) && cached != null)
+        {
+            rampeCount = cached.RampeCount;
+            entreeCount = cached.EntreeCount;
+            sortieCount = cached.SortieCount;
+            healthPercent = cached.HealthPercent;
+            healthStatusText = cached.HealthStatusText;
+            dynamicItems = cached.Items;
+            if (dynamicItems.Count > 0)
+            {
+                SelectedChassis = dynamicItems[0];
+            }
+            isLoading = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !hasTriggeredLoad)
+        {
+            hasTriggeredLoad = true;
+
+            // Si déjà en cache, l'actualisation se fait silencieusement en arrière-plan sans bloquer
+            // Sinon, l'indicateur de chargement reste actif jusqu'à réception
+            await LoadDashboardDataAsync();
+        }
+    }
+
+    private async Task LoadDashboardDataAsync()
+    {
+        try
+        {
+            // Appel asynchrone non-bloquant de la procédure stockée existante PS310493
+            var dataResult = await BapiService.ExecuteProcedureAsync(1, "PS310493", new object?[] { 1 });
+
+            if (dataResult != null && dataResult.Length > 0)
+            {
+                rampeCount = dataResult.Count(r => r.GetValueOrDefault("Rampe_VAQ_Badge")?.ToString() != "Oui");
+                entreeCount = dataResult.Count(r => r.GetValueOrDefault("Entre_DTI_Badge")?.ToString() != "DTI-OK");
+                sortieCount = dataResult.Count(r => r.GetValueOrDefault("Sortie_CEN_Badge")?.ToString() != "CEN-OK");
+
+                healthPercent = Math.Clamp(100 - (sortieCount * 100 / dataResult.Length), 60, 99);
+                healthStatusText = healthPercent >= 85 ? "FLUIDE" : (healthPercent >= 70 ? "ATTENTION" : "CRITIQUE");
+
+                var items = new List<ChassisItem>();
+
+                // Extraction des véhicules opérationnels
+                foreach (var row in dataResult.Take(250))
+                {
+                    var isVaqOk = row.GetValueOrDefault("Rampe_VAQ_Badge")?.ToString() == "Oui";
+                    var isDtiOk = row.GetValueOrDefault("Entre_DTI_Badge")?.ToString() == "DTI-OK";
+                    var isCenOk = row.GetValueOrDefault("Sortie_CEN_Badge")?.ToString() == "CEN-OK";
+
+                    string type;
+                    string statut;
+                    string action;
+
+                    if (!isVaqOk)
+                    {
+                        type = "Alertes Rampe";
+                        statut = "Non/Erreur";
+                        action = "Valider VAQ";
+                    }
+                    else if (!isDtiOk)
+                    {
+                        type = "Bloqués Entrée";
+                        statut = "Inconnu";
+                        action = "Contacter Chauffeur";
+                    }
+                    else if (!isCenOk)
+                    {
+                        type = "Alertes Sortie";
+                        statut = "Non/Erreur";
+                        action = "Valider Sortie";
+                    }
+                    else
+                    {
+                        type = "Validés";
+                        statut = "Oui/Validé";
+                        action = "Consulter";
+                    }
+
+                    var rampeDateStr = row.GetValueOrDefault("Rampe_Date")?.ToString();
+                    string derniereMaj = "—";
+                    if (!string.IsNullOrEmpty(rampeDateStr) && DateTime.TryParse(rampeDateStr, out var dt))
+                    {
+                        derniereMaj = dt.ToString("dd/MM/yyyy, HH:mm");
+                    }
+
+                    var item = new ChassisItem
+                    {
+                        ChassisId = row.GetValueOrDefault("NumChassisCourt")?.ToString() ?? "",
+                        ChassisLong = row.GetValueOrDefault("NumChassisLong")?.ToString() ?? "",
+                        Type = type,
+                        Statut = statut,
+                        Rampe = isVaqOk ? "Oui" : "—",
+                        Entree = isDtiOk ? "Entrée" : "DTI",
+                        Sortie = isCenOk ? "CEN" : "Non validés",
+                        DerniereMaj = derniereMaj,
+                        ActionLabel = action,
+                        Modele = row.GetValueOrDefault("Model")?.ToString() ?? "",
+                        Categorie = row.GetValueOrDefault("Categorie")?.ToString() ?? "",
+                        Dimensions = "450 x 180 cm",
+                        Poids = "1 500 kg",
+                        Contents = $"Débarquement navire {row.GetValueOrDefault("LibelleNavire")} (Manifeste {row.GetValueOrDefault("CodeManifeste")})",
+                        Pointeur = row.GetValueOrDefault("Rampe_Pointeur")?.ToString() ?? "—",
+                        Chauffeur = row.GetValueOrDefault("Rampe_Chauffeur")?.ToString() ?? "—",
+                        Navire = row.GetValueOrDefault("LibelleNavire")?.ToString() ?? "",
+                        Manifeste = row.GetValueOrDefault("CodeManifeste")?.ToString() ?? ""
+                    };
+                    items.Add(item);
+                }
+
+                dynamicItems = items;
+                if (dynamicItems.Count > 0 && SelectedChassis == null)
+                {
+                    SelectedChassis = dynamicItems[0];
+                }
+
+                // Mise en mémoire cache pour 5 minutes
+                var payload = new DashboardCachePayload(rampeCount, entreeCount, sortieCount, healthPercent, healthStatusText, dynamicItems);
+                MemoryCache.Set(CacheKey, payload, TimeSpan.FromMinutes(5));
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[VisualControlCenter] Erreur BAPI: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void HandleFilterSelected(string filterName)
+    {
+        ActiveFilter = filterName;
+        Snackbar.Add($"Filtre appliqué : {filterName}", Severity.Info);
+    }
+
+    private void OpenInspectionDrawer()
+    {
+        if (SelectedChassis == null)
+        {
+            SelectedChassis = new ChassisItem
+            {
+                ChassisId = "014550208",
+                Type = "Alertes Rampe",
+                Statut = "Oui/Validé",
+                Rampe = "—",
+                Entree = "DTI",
+                Sortie = "—",
+                DerniereMaj = "20/02/2026, 13:54",
+                ActionLabel = "Valider VAQ"
+            };
+        }
+        IsDrawerOpen = true;
+    }
+
+    private void HandleChassisSelected(ChassisItem item)
+    {
+        SelectedChassis = item;
+        IsDrawerOpen = true;
+    }
+
+    private void HandleActionExecuted(ChassisItem item)
+    {
+        Snackbar.Add($"Action '{item.ActionLabel}' exécutée pour le châssis {item.ChassisId}", Severity.Success);
+    }
+
+    private void HandleAnomalyResolved()
+    {
+        if (SelectedChassis != null)
+        {
+            Snackbar.Add($"Anomalie résolue avec succès pour le dossier {SelectedChassis.ChassisId}", Severity.Success);
+        }
+    }
+}

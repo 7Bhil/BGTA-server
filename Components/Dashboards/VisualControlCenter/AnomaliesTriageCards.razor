@@ -1,0 +1,81 @@
+@using MudBlazor
+
+<MudGrid Class="mb-4">
+    <!-- Card 1: Alertes Rampe (Bleu Métro) -->
+    <MudItem xs="12" sm="4">
+        <div class="cursor-pointer" @onclick='() => SelectFilter("Alertes Rampe")'>
+            <MudCard Elevation="3" Class="rounded-lg border-l-4 style-card-blue" Style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); color: white;">
+                <MudCardContent Class="pa-4">
+                    <div class="d-flex align-center justify-space-between mb-2">
+                        <div class="d-flex align-center">
+                            <MudIcon Icon="@Icons.Material.Filled.AltRoute" Size="Size.Large" Class="mr-3" />
+                            <div>
+                                <MudText Typo="Typo.subtitle2" Style="text-transform: uppercase; font-weight: 700; opacity: 0.9;">Alertes Rampe</MudText>
+                                <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Filled">Non reçus</MudChip>
+                            </div>
+                        </div>
+                        <MudText Typo="Typo.h3" Style="font-weight: 800;">@RampeCount</MudText>
+                    </div>
+                    <MudText Typo="Typo.body2" Style="font-weight: 600; opacity: 0.95;">@RampeCount VAQ Non reçus</MudText>
+                </MudCardContent>
+            </MudCard>
+        </div>
+    </MudItem>
+
+    <!-- Card 2: Bloqués Entrée (Vert Métro) -->
+    <MudItem xs="12" sm="4">
+        <div class="cursor-pointer" @onclick='() => SelectFilter("Bloqués Entrée")'>
+            <MudCard Elevation="3" Class="rounded-lg border-l-4 style-card-green" Style="background: linear-gradient(135deg, #065f46 0%, #059669 100%); color: white;">
+                <MudCardContent Class="pa-4">
+                    <div class="d-flex align-center justify-space-between mb-2">
+                        <div class="d-flex align-center">
+                            <MudIcon Icon="@Icons.Material.Filled.MoveToInbox" Size="Size.Large" Class="mr-3" />
+                            <div>
+                                <MudText Typo="Typo.subtitle2" Style="text-transform: uppercase; font-weight: 700; opacity: 0.9;">Bloqués Entrée</MudText>
+                                <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled">DTI Manquants</MudChip>
+                            </div>
+                        </div>
+                        <MudText Typo="Typo.h3" Style="font-weight: 800;">@EntreeCount</MudText>
+                    </div>
+                    <MudText Typo="Typo.body2" Style="font-weight: 600; opacity: 0.95;">@EntreeCount DTI Manquants</MudText>
+                </MudCardContent>
+            </MudCard>
+        </div>
+    </MudItem>
+
+    <!-- Card 3: Alertes Sortie (Orange Métro) -->
+    <MudItem xs="12" sm="4">
+        <div class="cursor-pointer" @onclick='() => SelectFilter("Alertes Sortie")'>
+            <MudCard Elevation="3" Class="rounded-lg border-l-4 style-card-orange" Style="background: linear-gradient(135deg, #9a3412 0%, #ea580c 100%); color: white;">
+                <MudCardContent Class="pa-4">
+                    <div class="d-flex align-center justify-space-between mb-2">
+                        <div class="d-flex align-center">
+                            <MudIcon Icon="@Icons.Material.Filled.Outbox" Size="Size.Large" Class="mr-3" />
+                            <div>
+                                <MudText Typo="Typo.subtitle2" Style="text-transform: uppercase; font-weight: 700; opacity: 0.9;">Alertes Sortie</MudText>
+                                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled">Non validés</MudChip>
+                            </div>
+                        </div>
+                        <MudText Typo="Typo.h3" Style="font-weight: 800;">@SortieCount</MudText>
+                    </div>
+                    <MudText Typo="Typo.body2" Style="font-weight: 600; opacity: 0.95;">@SortieCount CEN Non validés</MudText>
+                </MudCardContent>
+            </MudCard>
+        </div>
+    </MudItem>
+</MudGrid>
+
+@code {
+    [Parameter] public EventCallback<string> OnFilterChanged { get; set; }
+    [Parameter] public int RampeCount { get; set; } = 3;
+    [Parameter] public int EntreeCount { get; set; } = 5;
+    [Parameter] public int SortieCount { get; set; } = 2;
+
+    private async Task SelectFilter(string filterName)
+    {
+        if (OnFilterChanged.HasDelegate)
+        {
+            await OnFilterChanged.InvokeAsync(filterName);
+        }
+    }
+}

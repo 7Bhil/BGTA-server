@@ -1,0 +1,46 @@
+@using MudBlazor
+
+<MudPaper Elevation="2" Class="pa-3 mb-4 rounded-lg" Style="background: linear-gradient(90deg, #0f172a 0%, #1e293b 100%); color: white;">
+    <MudGrid Class="align-center">
+        <!-- Logo & Titre Visual Control Center -->
+        <MudItem xs="12" md="3" Class="d-flex align-center">
+            <MudIcon Icon="@Icons.Material.Filled.DashboardCustomize" Color="Color.Info" Class="mr-2" Size="Size.Large" />
+            <div>
+                <MudText Typo="Typo.h6" Style="font-weight: 700; letter-spacing: 0.5px; color: #f8fafc;">VISUAL CONTROL CENTER</MudText>
+                <MudText Typo="Typo.caption" Style="color: #94a3b8;">Supervision & Triage Opérationnel BGTA</MudText>
+            </div>
+        </MudItem>
+
+        <!-- Dynamic Status Banner Center -->
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="0" Class="pa-2 px-4 rounded-pill d-flex flex-column align-center" Style="background-color: rgba(16, 185, 129, 0.15); border: 1px solid #10b981;">
+                <div class="d-flex align-center justify-space-between w-100 mb-1">
+                    <MudText Typo="Typo.subtitle2" Style="font-weight: 700; color: #10b981; text-transform: uppercase;">
+                        SANTÉ GLOBALE DE LA JOURNÉE : @HealthStatusText
+                    </MudText>
+                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled">FLUIDE (@HealthPercent%)</MudChip>
+                </div>
+                <MudProgressLinear Color="Color.Success" Value="@HealthPercent" Class="w-100 rounded-pill" Style="height: 6px;" />
+            </MudPaper>
+        </MudItem>
+
+        <!-- Right System Info -->
+        <MudItem xs="12" md="3" Class="d-flex align-center justify-end">
+            <div class="text-right">
+                <MudText Typo="Typo.body2" Style="font-weight: 600; color: #f8fafc;">
+                    @(TotalVehicules > 0 ? $"{TotalVehicules} VÉHICULES ACTIFS" : CurrentTime)
+                </MudText>
+                <MudText Typo="Typo.caption" Style="color: #94a3b8;">@CurrentDate - @CurrentTime</MudText>
+            </div>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@code {
+    [Parameter] public string HealthStatusText { get; set; } = "FLUIDE";
+    [Parameter] public int HealthPercent { get; set; } = 85;
+    [Parameter] public int TotalVehicules { get; set; } = 0;
+
+    private string CurrentTime { get; set; } = DateTime.Now.ToString("HH:mm:ss");
+    private string CurrentDate { get; set; } = DateTime.Now.ToString("dd/MM/yyyy");
+}

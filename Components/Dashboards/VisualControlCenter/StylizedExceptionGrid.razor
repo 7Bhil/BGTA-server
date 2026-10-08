@@ -1,0 +1,196 @@
+@using MudBlazor
+
+<MudPaper Elevation="3" Class="pa-4 rounded-lg">
+    <div class="d-flex align-center justify-space-between mb-3">
+        <div class="d-flex align-center">
+            <MudText Typo="Typo.h6" Style="font-weight: 700; color: #1e293b;" Class="mr-3">
+                ZONE DE RÉSOLUTION — GRILLE D'EXCEPTIONS
+            </MudText>
+            @if (!string.IsNullOrEmpty(ActiveFilter))
+            {
+                <MudChip T="string" Color="Color.Primary" OnClose="ResetFilter" Size="Size.Small" Variant="Variant.Filled">
+                    Filtre : @ActiveFilter
+                </MudChip>
+            }
+        </div>
+        <MudTextField T="string" Value="@SearchTerm" ValueChanged="@OnSearchChanged" Placeholder="Rechercher Châssis, Type, Statut..." Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0" Style="max-width: 300px;" />
+    </div>
+
+    <MudTable Items="@FilteredItems" Hover="true" Striped="true" Dense="true" OnRowClick="@OnRowClicked" T="ChassisItem" RowClass="cursor-pointer" Loading="@IsLoading" LoadingProgressColor="Color.Primary">
+        <HeaderContent>
+            <MudTh>CHÂSSIS ID</MudTh>
+            <MudTh>TYPE</MudTh>
+            <MudTh>STATUT</MudTh>
+            <MudTh>RAMPE</MudTh>
+            <MudTh>ENTRÉE</MudTh>
+            <MudTh>SORTIE</MudTh>
+            <MudTh>DERNIÈRE MAJ</MudTh>
+            <MudTh Style="text-align: center;">ACTIONS</MudTh>
+        </HeaderContent>
+        <LoadingContent>
+            <MudText Typo="Typo.body2" Class="pa-4 text-center" Style="color: #64748b;">Chargement des données opérationnelles...</MudText>
+        </LoadingContent>
+        <NoRecordsContent>
+            <MudText Typo="Typo.body2" Class="pa-4 text-center" Style="color: #64748b;">Aucune exception opérationnelle détectée.</MudText>
+        </NoRecordsContent>
+        <RowTemplate>
+            <MudTd DataLabel="CHÂSSIS ID">
+                <MudText Typo="Typo.body2" Style="font-weight: 700; font-family: monospace; color: #0f172a;">@context.ChassisId</MudText>
+                @if (!string.IsNullOrEmpty(context.Modele))
+                {
+                    <MudText Typo="Typo.caption" Style="color: #64748b; font-size: 0.72rem; display: block;">@context.Modele</MudText>
+                }
+            </MudTd>
+            <MudTd DataLabel="TYPE">@context.Type</MudTd>
+            <MudTd DataLabel="STATUT">
+                @if (context.Statut == "Oui/Validé")
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled" Icon="@Icons.Material.Filled.CheckCircle">Validé</MudChip>
+                }
+                else if (context.Statut == "Non/Erreur")
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Filled" Icon="@Icons.Material.Filled.Cancel">Erreur</MudChip>
+                }
+                else
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Filled" Icon="@Icons.Material.Filled.Help">Inconnu</MudChip>
+                }
+            </MudTd>
+            <MudTd DataLabel="RAMPE">
+                @if (context.Rampe == "Oui")
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined">Oui</MudChip>
+                }
+                else if (context.Rampe == "DTI")
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined">DTI</MudChip>
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">—</MudText>
+                }
+            </MudTd>
+            <MudTd DataLabel="ENTRÉE">
+                @if (context.Entree == "DTI")
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Filled">DTI</MudChip>
+                }
+                else if (context.Entree == "Entrée")
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled">Entrée</MudChip>
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">—</MudText>
+                }
+            </MudTd>
+            <MudTd DataLabel="SORTIE">
+                @if (context.Sortie == "CEN")
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled">CEN</MudChip>
+                }
+                else if (context.Sortie == "Non validés")
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled">Non validés</MudChip>
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">—</MudText>
+                }
+            </MudTd>
+            <MudTd DataLabel="DERNIÈRE MAJ">@context.DerniereMaj</MudTd>
+            <MudTd DataLabel="ACTIONS" Style="text-align: center;">
+                <div class="d-flex align-center justify-center gap-1">
+                    <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small" OnClick="@(() => SelectForInspection(context))" />
+                    @if (context.ActionLabel.Contains("Valider"))
+                    {
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Filled.Check" OnClick="@(() => ExecuteAction(context))">
+                            @context.ActionLabel
+                        </MudButton>
+                    }
+                    else
+                    {
+                        <MudButton Variant="Variant.Outlined" Color="Color.Dark" Size="Size.Small" StartIcon="@Icons.Material.Filled.Phone" OnClick="@(() => ExecuteAction(context))">
+                            @context.ActionLabel
+                        </MudButton>
+                    }
+                </div>
+            </MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager PageSizeOptions="new int[] { 25, 50, 100, 250 }" RowsPerPageString="Lignes par page :" InfoFormat="{first_item}-{last_item} sur {all_items}" />
+        </PagerContent>
+    </MudTable>
+</MudPaper>
+
+@code {
+    [Parameter] public string ActiveFilter { get; set; } = string.Empty;
+    [Parameter] public EventCallback<ChassisItem> OnItemSelected { get; set; }
+    [Parameter] public EventCallback<ChassisItem> OnActionExecuted { get; set; }
+    [Parameter] public List<ChassisItem>? CustomItems { get; set; }
+
+    private string SearchTerm { get; set; } = string.Empty;
+
+    public class ChassisItem
+    {
+        public string ChassisId { get; set; } = string.Empty;
+        public string ChassisLong { get; set; } = string.Empty;
+        public string Type { get; set; } = string.Empty;
+        public string Statut { get; set; } = string.Empty;
+        public string Rampe { get; set; } = string.Empty;
+        public string Entree { get; set; } = string.Empty;
+        public string Sortie { get; set; } = string.Empty;
+        public string DerniereMaj { get; set; } = string.Empty;
+        public string ActionLabel { get; set; } = string.Empty;
+        public string Modele { get; set; } = string.Empty;
+        public string Categorie { get; set; } = string.Empty;
+        public string Dimensions { get; set; } = "450 x 180 cm";
+        public string Poids { get; set; } = "1 500 kg";
+        public string Contents { get; set; } = "Véhicule débarqué";
+        public string Pointeur { get; set; } = string.Empty;
+        public string PointeurBadge { get; set; } = string.Empty;
+        public string Chauffeur { get; set; } = string.Empty;
+        public string ChauffeurBadge { get; set; } = string.Empty;
+        public string Navire { get; set; } = string.Empty;
+        public string Manifeste { get; set; } = string.Empty;
+    }
+
+    [Parameter] public bool IsLoading { get; set; } = false;
+
+    private List<ChassisItem> Items = new();
+
+    private IEnumerable<ChassisItem> FilteredItems => (CustomItems ?? Items).Where(i =>
+        (string.IsNullOrEmpty(ActiveFilter) || i.Type.Equals(ActiveFilter, StringComparison.OrdinalIgnoreCase)) &&
+        (string.IsNullOrEmpty(SearchTerm) ||
+         i.ChassisId.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase) ||
+         i.Type.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase) ||
+         i.Statut.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase))
+    );
+
+    private void OnSearchChanged(string value) => SearchTerm = value;
+    private void ResetFilter() => ActiveFilter = string.Empty;
+
+    private async Task SelectForInspection(ChassisItem item)
+    {
+        if (OnItemSelected.HasDelegate)
+        {
+            await OnItemSelected.InvokeAsync(item);
+        }
+    }
+
+    private async Task OnRowClicked(TableRowClickEventArgs<ChassisItem> args)
+    {
+        if (args.Item != null && OnItemSelected.HasDelegate)
+        {
+            await OnItemSelected.InvokeAsync(args.Item);
+        }
+    }
+
+    private async Task ExecuteAction(ChassisItem item)
+    {
+        if (OnActionExecuted.HasDelegate)
+        {
+            await OnActionExecuted.InvokeAsync(item);
+        }
+    }
+}
