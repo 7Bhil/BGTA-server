@@ -1,8 +1,29 @@
 @using MudBlazor
 
 <MudGrid Class="mb-4">
+    <!-- Card 0: Tous les Véhicules (Ardoise Métro) -->
+    <MudItem xs="12" sm="3">
+        <div class="cursor-pointer" @onclick='() => SelectFilter("")'>
+            <MudCard Elevation="3" Class="rounded-lg border-l-4 style-card-dark" Style="background: linear-gradient(135deg, #0f172a 0%, #334155 100%); color: white;">
+                <MudCardContent Class="pa-4">
+                    <div class="d-flex align-center justify-space-between mb-2">
+                        <div class="d-flex align-center">
+                            <MudIcon Icon="@Icons.Material.Filled.DirectionsCar" Size="Size.Large" Class="mr-3" />
+                            <div>
+                                <MudText Typo="Typo.subtitle2" Style="text-transform: uppercase; font-weight: 700; opacity: 0.9;">Tous les Véhicules</MudText>
+                                <MudChip T="string" Size="Size.Small" Color="Color.Dark" Variant="Variant.Filled">Total Flotte</MudChip>
+                            </div>
+                        </div>
+                        <MudText Typo="Typo.h3" Style="font-weight: 800;">@TotalCount</MudText>
+                    </div>
+                    <MudText Typo="Typo.body2" Style="font-weight: 600; opacity: 0.95;">@TotalCount Véhicules au manifeste</MudText>
+                </MudCardContent>
+            </MudCard>
+        </div>
+    </MudItem>
+
     <!-- Card 1: Alertes Rampe (Bleu Métro) -->
-    <MudItem xs="12" sm="4">
+    <MudItem xs="12" sm="3">
         <div class="cursor-pointer" @onclick='() => SelectFilter("Alertes Rampe")'>
             <MudCard Elevation="3" Class="rounded-lg border-l-4 style-card-blue" Style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); color: white;">
                 <MudCardContent Class="pa-4">
@@ -23,7 +44,7 @@
     </MudItem>
 
     <!-- Card 2: Bloqués Entrée (Vert Métro) -->
-    <MudItem xs="12" sm="4">
+    <MudItem xs="12" sm="3">
         <div class="cursor-pointer" @onclick='() => SelectFilter("Bloqués Entrée")'>
             <MudCard Elevation="3" Class="rounded-lg border-l-4 style-card-green" Style="background: linear-gradient(135deg, #065f46 0%, #059669 100%); color: white;">
                 <MudCardContent Class="pa-4">
@@ -44,7 +65,7 @@
     </MudItem>
 
     <!-- Card 3: Alertes Sortie (Orange Métro) -->
-    <MudItem xs="12" sm="4">
+    <MudItem xs="12" sm="3">
         <div class="cursor-pointer" @onclick='() => SelectFilter("Alertes Sortie")'>
             <MudCard Elevation="3" Class="rounded-lg border-l-4 style-card-orange" Style="background: linear-gradient(135deg, #9a3412 0%, #ea580c 100%); color: white;">
                 <MudCardContent Class="pa-4">
@@ -67,9 +88,10 @@
 
 @code {
     [Parameter] public EventCallback<string> OnFilterChanged { get; set; }
-    [Parameter] public int RampeCount { get; set; } = 3;
-    [Parameter] public int EntreeCount { get; set; } = 5;
-    [Parameter] public int SortieCount { get; set; } = 2;
+    [Parameter] public int TotalCount { get; set; } = 0;
+    [Parameter] public int RampeCount { get; set; } = 0;
+    [Parameter] public int EntreeCount { get; set; } = 0;
+    [Parameter] public int SortieCount { get; set; } = 0;
 
     private async Task SelectFilter(string filterName)
     {

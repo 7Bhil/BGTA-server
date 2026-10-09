@@ -19,30 +19,7 @@
         }
         else
         {
-            @switch (currentProfilId)
-            {
-                case 1:  // Administrateur
-                case 14: // ADMIN SOBEMAP
-                case 17: // DSI
-                    <VisualControlCenterDashboard />
-                    break;
-
-                case 8:  // SERVICE FACTURATION
-                case 9:  // SERVICE COMPTABILITE
-                    <ComptabiliteDashboard />
-                    break;
-
-                case 2:  // POINTEUR
-                case 3:  // CHAUFFEUR
-                case 12: // SAH
-                case 13: // USERPOCKET
-                    <TerrainDashboard />
-                    break;
-
-                default: // Rôles métier standards et repli
-                    <GenericDashboard />
-                    break;
-            }
+            <VisualControlCenterDashboard />
         }
     </Authorized>
 </AuthorizeView>

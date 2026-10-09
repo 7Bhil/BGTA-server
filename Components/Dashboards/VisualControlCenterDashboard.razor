@@ -1,6 +1,7 @@
 @using MudBlazor
 @using BGTA.Server.Components.Dashboards.VisualControlCenter
 @using static BGTA.Server.Components.Dashboards.VisualControlCenter.StylizedExceptionGrid
+@using static BGTA.Server.Components.Dashboards.VisualControlCenter.DynamicStatusHeader
 
 @using BGTA.Server.Data.Services
 @inject ISnackbar Snackbar
@@ -10,210 +11,350 @@
 @inject IMemoryCache MemoryCache
 
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pa-4">
-    <!-- 1. En-tête Dynamique d'État Global -->
-    <DynamicStatusHeader HealthPercent="@healthPercent" HealthStatusText="@healthStatusText" TotalVehicules="@rampeCount" />
+    <!-- 1. En-tête Dynamique avec Sélecteur de Manifeste et Horloge Temps-Réel -->
+    <DynamicStatusHeader HealthPercent="@healthPercent"
+                         HealthStatusText="@healthStatusText"
+                         TotalVehicules="@totalVehicules"
+                         AvailableManifestes="@availableManifestes"
+                         SelectedManifeste="@selectedManifeste"
+                         OnManifesteSelected="HandleManifesteSelected" />
 
-    <!-- 2. Cartes de Triage d'Anomalies (Métro-Moderne) -->
-    <AnomaliesTriageCards OnFilterChanged="HandleFilterSelected" RampeCount="@rampeCount" EntreeCount="@entreeCount" SortieCount="@sortieCount" />
+    @if (selectedManifeste == null)
+    {
+        <!-- Invite / Modale de Sélection Obligatoire du Manifeste -->
+        <MudPaper Elevation="4" Class="pa-6 my-6 rounded-lg text-center" Style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-top: 4px solid #0284c7;">
+            <MudIcon Icon="@Icons.Material.Filled.DirectionsBoat" Color="Color.Info" Style="font-size: 3.5rem;" Class="mb-3" />
+            <MudText Typo="Typo.h5" Style="font-weight: 800; color: #0f172a;" Class="mb-2">
+                SÉLECTION DU MANIFESTE REQUISE
+            </MudText>
+            <MudText Typo="Typo.body2" Style="color: #64748b;" Class="mb-4">
+                Pour accéder à la supervision et au triage du Visual Control Center, veuillez sélectionner un manifeste actif.
+            </MudText>
 
-    <!-- 3. Grille d'Exceptions & Zone de Résolution -->
-    <StylizedExceptionGrid ActiveFilter="@ActiveFilter" CustomItems="@dynamicItems" IsLoading="@isLoading" OnItemSelected="HandleChassisSelected" OnActionExecuted="HandleActionExecuted" />
+            <MudAutocomplete T="ManifesteItem"
+                             Value="@tempSelectedManifeste"
+                             ValueChanged="@(m => tempSelectedManifeste = m)"
+                             SearchFunc="@SearchManifestes"
+                             ToStringFunc="@(m => m == null ? string.Empty : $"{m.Code} — {m.LibelleNavire}")"
+                             Placeholder="Rechercher par numéro ou navire..."
+                             AdornmentIcon="@Icons.Material.Filled.Search"
+                             AdornmentColor="Color.Info"
+                             Dense="true"
+                             Class="mb-4 text-left"
+                             Variant="Variant.Outlined" />
 
-    <!-- Bouton Accès Rapide au Panneau d'Inspection -->
-    <div class="d-flex justify-end mb-3">
-        <MudButton Variant="Variant.Filled" Color="Color.Info" StartIcon="@Icons.Material.Filled.ManageSearch" OnClick="OpenInspectionDrawer" Class="rounded-pill">
-            PANNEAU D'INSPECTION
-        </MudButton>
-    </div>
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Info"
+                       Size="Size.Large"
+                       StartIcon="@Icons.Material.Filled.Dashboard"
+                       Disabled="@(tempSelectedManifeste == null)"
+                       OnClick="ConfirmManifesteSelection"
+                       Class="rounded-pill px-6"
+                       FullWidth="true">
+                ACCÉDER AU TABLEAU DE BORD
+            </MudButton>
+        </MudPaper>
+    }
+    else
+    {
+        <!-- 2. Cartes de Triage d'Anomalies (Métro-Moderne) -->
+        <AnomaliesTriageCards OnFilterChanged="HandleFilterSelected" TotalCount="@totalVehicules" RampeCount="@rampeCount" EntreeCount="@entreeCount" SortieCount="@sortieCount" />
 
-    <!-- 4. Panneau Latéral d'Inspection & Détails -->
-    <InspectionDrawerPanel Open="@IsDrawerOpen" OpenChanged="@(val => IsDrawerOpen = val)" SelectedItem="@SelectedChassis" OnAnomalyResolved="HandleAnomalyResolved" />
+        <!-- 3. Grille Administrative des Véhicules du Manifeste (Paginée Serveur) -->
+        <StylizedExceptionGrid @ref="gridRef"
+                               ActiveFilter="@ActiveFilter"
+                               ServerDataProvider="@LoadServerPagedVehicules"
+                               IsLoading="@isLoading"
+                               TotalVehicules="@totalVehicules"
+                               OnItemSelected="HandleChassisSelected"
+                               OnActionExecuted="HandleActionExecuted" />
+
+        <!-- Bouton Accès Rapide au Panneau d'Inspection -->
+        <div class="d-flex justify-end my-3">
+            <MudButton Variant="Variant.Filled" Color="Color.Info" StartIcon="@Icons.Material.Filled.ManageSearch" OnClick="OpenInspectionDrawer" Class="rounded-pill">
+                PANNEAU D'INSPECTION
+            </MudButton>
+        </div>
+
+        <!-- 4. Panneau Latéral d'Inspection & Détails -->
+        <InspectionDrawerPanel Open="@IsDrawerOpen" OpenChanged="@(val => IsDrawerOpen = val)" SelectedItem="@SelectedChassis" OnAnomalyResolved="HandleAnomalyResolved" />
+    }
 </MudContainer>
 
 @code {
     private string ActiveFilter { get; set; } = string.Empty;
     private bool IsDrawerOpen { get; set; } = false;
     private ChassisItem? SelectedChassis { get; set; }
-    private bool isLoading = true;
-    private bool hasTriggeredLoad = false;
+    private bool isLoading = false;
 
     private int rampeCount = 0;
     private int entreeCount = 0;
     private int sortieCount = 0;
+    private int totalVehicules = 0;
     private int healthPercent = 88;
     private string healthStatusText = "FLUIDE";
-    private List<ChassisItem>? dynamicItems;
 
-    private record DashboardCachePayload(
-        int RampeCount,
-        int EntreeCount,
-        int SortieCount,
-        int HealthPercent,
-        string HealthStatusText,
-        List<ChassisItem> Items);
+    private List<ManifesteItem> availableManifestes = new();
+    private ManifesteItem? selectedManifeste;
+    private ManifesteItem? tempSelectedManifeste;
 
-    private const string CacheKey = "DASHBOARD_OPERATIONS_DATA";
+    private const string ManifestesCacheKey = "AVAILABLE_MANIFESTES_LIST";
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        // 1. Si un cache existe, on l'affiche immédiatement à la première milliseconde
-        if (MemoryCache.TryGetValue(CacheKey, out DashboardCachePayload? cached) && cached != null)
+        await LoadManifestesListAsync();
+    }
+
+    private static int ToInt(object? val, int defaultValue = 0)
+    {
+        if (val == null) return defaultValue;
+        if (val is System.Text.Json.JsonElement elem)
         {
-            rampeCount = cached.RampeCount;
-            entreeCount = cached.EntreeCount;
-            sortieCount = cached.SortieCount;
-            healthPercent = cached.HealthPercent;
-            healthStatusText = cached.HealthStatusText;
-            dynamicItems = cached.Items;
-            if (dynamicItems.Count > 0)
+            if (elem.ValueKind == System.Text.Json.JsonValueKind.Number && elem.TryGetInt32(out var num)) return num;
+            if (elem.ValueKind == System.Text.Json.JsonValueKind.String && int.TryParse(elem.GetString(), out var sNum)) return sNum;
+            return defaultValue;
+        }
+        if (val is int i) return i;
+        if (val is long l) return (int)l;
+        if (int.TryParse(val.ToString(), out var parsed)) return parsed;
+        return defaultValue;
+    }
+
+    private static string ToStringVal(object? val, string defaultValue = "")
+    {
+        if (val == null) return defaultValue;
+        if (val is System.Text.Json.JsonElement elem)
+        {
+            return elem.ValueKind switch
             {
-                SelectedChassis = dynamicItems[0];
-            }
-            isLoading = false;
+                System.Text.Json.JsonValueKind.Null or System.Text.Json.JsonValueKind.Undefined => defaultValue,
+                System.Text.Json.JsonValueKind.String => elem.GetString() ?? defaultValue,
+                _ => elem.ToString()
+            };
         }
+        return val.ToString() ?? defaultValue;
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender && !hasTriggeredLoad)
-        {
-            hasTriggeredLoad = true;
-
-            // Si déjà en cache, l'actualisation se fait silencieusement en arrière-plan sans bloquer
-            // Sinon, l'indicateur de chargement reste actif jusqu'à réception
-            await LoadDashboardDataAsync();
-        }
-    }
-
-    private async Task LoadDashboardDataAsync()
+    private async Task LoadManifestesListAsync()
     {
         try
         {
-            // Appel asynchrone non-bloquant de la procédure stockée existante PS310493
-            var dataResult = await BapiService.ExecuteProcedureAsync(1, "PS310493", new object?[] { 1 });
-
-            if (dataResult != null && dataResult.Length > 0)
+            if (MemoryCache.TryGetValue(ManifestesCacheKey, out List<ManifesteItem>? cached) && cached != null)
             {
-                rampeCount = dataResult.Count(r => r.GetValueOrDefault("Rampe_VAQ_Badge")?.ToString() != "Oui");
-                entreeCount = dataResult.Count(r => r.GetValueOrDefault("Entre_DTI_Badge")?.ToString() != "DTI-OK");
-                sortieCount = dataResult.Count(r => r.GetValueOrDefault("Sortie_CEN_Badge")?.ToString() != "CEN-OK");
+                availableManifestes = cached;
+                return;
+            }
 
-                healthPercent = Math.Clamp(100 - (sortieCount * 100 / dataResult.Length), 60, 99);
-                healthStatusText = healthPercent >= 85 ? "FLUIDE" : (healthPercent >= 70 ? "ATTENTION" : "CRITIQUE");
+            // Procédure officielle existante PS30004 pour la liste des manifestes non fermés
+            // Signature SQL : @idTypeEtatManifeste = 1, @idEtatManifesteOuvert = 1, @idEtatManifesteFermer = 2
+            var manifestesResult = await BapiService.ExecuteProcedureAsync(1, "PS30004", new object?[] { 1, 1, 2 });
+            var list = new List<ManifesteItem>();
 
-                var items = new List<ChassisItem>();
-
-                // Extraction des véhicules opérationnels
-                foreach (var row in dataResult.Take(250))
+            if (manifestesResult != null && manifestesResult.Length > 0)
+            {
+                foreach (var row in manifestesResult)
                 {
-                    var isVaqOk = row.GetValueOrDefault("Rampe_VAQ_Badge")?.ToString() == "Oui";
-                    var isDtiOk = row.GetValueOrDefault("Entre_DTI_Badge")?.ToString() == "DTI-OK";
-                    var isCenOk = row.GetValueOrDefault("Sortie_CEN_Badge")?.ToString() == "CEN-OK";
+                    int id = ToInt(row.GetValueOrDefault("IdManifeste_PK") ?? row.GetValueOrDefault("Code"));
+                    string code = ToStringVal(row.GetValueOrDefault("CodeManifeste") ?? row.GetValueOrDefault("ATP"), $"MAN-{id}");
+                    string navire = ToStringVal(row.GetValueOrDefault("LibelleNavire") ?? row.GetValueOrDefault("Libelle"), "Navire Non Renseigné");
+                    string date = ToStringVal(row.GetValueOrDefault("DateManifeste"), "—");
 
-                    string type;
-                    string statut;
-                    string action;
-
-                    if (!isVaqOk)
-                    {
-                        type = "Alertes Rampe";
-                        statut = "Non/Erreur";
-                        action = "Valider VAQ";
-                    }
-                    else if (!isDtiOk)
-                    {
-                        type = "Bloqués Entrée";
-                        statut = "Inconnu";
-                        action = "Contacter Chauffeur";
-                    }
-                    else if (!isCenOk)
-                    {
-                        type = "Alertes Sortie";
-                        statut = "Non/Erreur";
-                        action = "Valider Sortie";
-                    }
-                    else
-                    {
-                        type = "Validés";
-                        statut = "Oui/Validé";
-                        action = "Consulter";
-                    }
-
-                    var rampeDateStr = row.GetValueOrDefault("Rampe_Date")?.ToString();
-                    string derniereMaj = "—";
-                    if (!string.IsNullOrEmpty(rampeDateStr) && DateTime.TryParse(rampeDateStr, out var dt))
-                    {
-                        derniereMaj = dt.ToString("dd/MM/yyyy, HH:mm");
-                    }
-
-                    var item = new ChassisItem
-                    {
-                        ChassisId = row.GetValueOrDefault("NumChassisCourt")?.ToString() ?? "",
-                        ChassisLong = row.GetValueOrDefault("NumChassisLong")?.ToString() ?? "",
-                        Type = type,
-                        Statut = statut,
-                        Rampe = isVaqOk ? "Oui" : "—",
-                        Entree = isDtiOk ? "Entrée" : "DTI",
-                        Sortie = isCenOk ? "CEN" : "Non validés",
-                        DerniereMaj = derniereMaj,
-                        ActionLabel = action,
-                        Modele = row.GetValueOrDefault("Model")?.ToString() ?? "",
-                        Categorie = row.GetValueOrDefault("Categorie")?.ToString() ?? "",
-                        Dimensions = "450 x 180 cm",
-                        Poids = "1 500 kg",
-                        Contents = $"Débarquement navire {row.GetValueOrDefault("LibelleNavire")} (Manifeste {row.GetValueOrDefault("CodeManifeste")})",
-                        Pointeur = row.GetValueOrDefault("Rampe_Pointeur")?.ToString() ?? "—",
-                        Chauffeur = row.GetValueOrDefault("Rampe_Chauffeur")?.ToString() ?? "—",
-                        Navire = row.GetValueOrDefault("LibelleNavire")?.ToString() ?? "",
-                        Manifeste = row.GetValueOrDefault("CodeManifeste")?.ToString() ?? ""
-                    };
-                    items.Add(item);
+                    list.Add(new ManifesteItem(id, code, navire, date));
                 }
+            }
 
-                dynamicItems = items;
-                if (dynamicItems.Count > 0 && SelectedChassis == null)
-                {
-                    SelectedChassis = dynamicItems[0];
-                }
+            // Données fallback si la procédure retourne 0 ligne en environnement de test
+            if (list.Count == 0)
+            {
+                list.Add(new ManifesteItem(1, "M250000294_CAMB", "RCC AFRICA", "09/05/2025"));
+            }
 
-                // Mise en mémoire cache pour 5 minutes
-                var payload = new DashboardCachePayload(rampeCount, entreeCount, sortieCount, healthPercent, healthStatusText, dynamicItems);
-                MemoryCache.Set(CacheKey, payload, TimeSpan.FromMinutes(5));
+            availableManifestes = list;
+            MemoryCache.Set(ManifestesCacheKey, availableManifestes, TimeSpan.FromMinutes(10));
+
+            // Sélection par défaut automatique du premier manifeste actif si aucun n'est encore sélectionné
+            if (selectedManifeste == null && availableManifestes.Count > 0)
+            {
+                var first = availableManifestes[0];
+                selectedManifeste = first;
+                tempSelectedManifeste = first;
+                await LoadDashboardDataAsync(first.Id);
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[VisualControlCenter] Erreur BAPI: {ex.Message}");
-        }
-        finally
-        {
-            isLoading = false;
-            await InvokeAsync(StateHasChanged);
+            Console.WriteLine($"[VisualControlCenter] Erreur chargement manifestes: {ex.Message}");
+            availableManifestes = new List<ManifesteItem>
+            {
+                new ManifesteItem(1, "M250000294_CAMB", "RCC AFRICA", "09/05/2025")
+            };
         }
     }
 
-    private void HandleFilterSelected(string filterName)
+    private Task<IEnumerable<ManifesteItem>> SearchManifestes(string value, CancellationToken token)
     {
-        ActiveFilter = filterName;
-        Snackbar.Add($"Filtre appliqué : {filterName}", Severity.Info);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return Task.FromResult<IEnumerable<ManifesteItem>>(availableManifestes);
+        }
+
+        var results = availableManifestes.Where(m =>
+            m.Code.Contains(value, StringComparison.OrdinalIgnoreCase) ||
+            m.LibelleNavire.Contains(value, StringComparison.OrdinalIgnoreCase));
+
+        return Task.FromResult(results);
+    }
+
+    private StylizedExceptionGrid? gridRef;
+
+    private async Task ConfirmManifesteSelection()
+    {
+        if (tempSelectedManifeste != null)
+        {
+            await HandleManifesteSelected(tempSelectedManifeste);
+        }
+    }
+
+    private async Task HandleManifesteSelected(ManifesteItem item)
+    {
+        selectedManifeste = item;
+        tempSelectedManifeste = item;
+        Snackbar.Add($"Manifeste sélectionné : {item.Code} ({item.LibelleNavire})", Severity.Info);
+        
+        // Rechargement immédiat de la grille paginée côté serveur
+        if (gridRef != null)
+        {
+            await gridRef.ReloadServerDataAsync();
+        }
+        await LoadDashboardDataAsync(item.Id);
+    }
+
+    private async Task<TableData<ChassisItem>> LoadServerPagedVehicules(TableState state, string searchTerm)
+    {
+        if (selectedManifeste == null)
+        {
+            return new TableData<ChassisItem> { TotalItems = 0, Items = new List<ChassisItem>() };
+        }
+
+        try
+        {
+            // Appel direct paginé côté serveur SQL (PageNumber commence à 1)
+            int pageNumber = state.Page + 1;
+            int pageSize = state.PageSize;
+
+            var result = await BapiService.ExecuteProcedureAsync(
+                1, 
+                "PS_DASHBOARD_ADMIN_MANIFESTE_VEHICULES", 
+                new object?[] { selectedManifeste.Id, pageNumber, pageSize, searchTerm ?? string.Empty });
+
+            if (result != null && result.Length > 0)
+            {
+                int totalRecords = ToInt(result[0].GetValueOrDefault("TotalRecords"), result.Length);
+                var items = new List<ChassisItem>();
+
+                foreach (var row in result)
+                {
+                    var rampe = ToStringVal(row.GetValueOrDefault("Rampe"), "—");
+                    var entree = ToStringVal(row.GetValueOrDefault("Entree"), "—");
+                    var sortie = ToStringVal(row.GetValueOrDefault("Sortie"), "—");
+                    var vaq = ToStringVal(row.GetValueOrDefault("VAQ"), "—");
+                    var dti = ToStringVal(row.GetValueOrDefault("DTI"), "—");
+                    var cen = ToStringVal(row.GetValueOrDefault("CEN"), "—");
+
+                    var item = new ChassisItem
+                    {
+                        ChassisId = ToStringVal(row.GetValueOrDefault("NumChassisCourt")),
+                        ChassisLong = ToStringVal(row.GetValueOrDefault("NumChassisLong")),
+                        Modele = ToStringVal(row.GetValueOrDefault("Model"), "—"),
+                        Categorie = ToStringVal(row.GetValueOrDefault("Categorie"), "—"),
+                        Rampe = rampe == "Oui" ? "Oui" : "—",
+                        Entree = entree == "Oui" ? "Oui" : "—",
+                        Sortie = sortie == "Oui" ? "Oui" : "—",
+                        VAQ = vaq == "Oui" ? "Oui" : "—",
+                        DTI = dti == "Oui" ? "Oui" : "—",
+                        CEN = cen == "Oui" ? "Oui" : "—",
+                        Status = ToStringVal(row.GetValueOrDefault("Status"), "En attente"),
+                        RampePointeur = ToStringVal(row.GetValueOrDefault("Rampe_Pointeur"), "—"),
+                        RampeChauffeur = ToStringVal(row.GetValueOrDefault("Rampe_Chauffeur"), "—"),
+                        EntrePointeur = ToStringVal(row.GetValueOrDefault("Entre_Pointeur"), "—"),
+                        EntreChauffeur = ToStringVal(row.GetValueOrDefault("Entre_Chauffeur"), "—"),
+                        SortiePointeur = ToStringVal(row.GetValueOrDefault("Sortie_Pointeur"), "—"),
+                        SortieChauffeur = ToStringVal(row.GetValueOrDefault("Sortie_Chauffeur"), "—"),
+                        Navire = selectedManifeste?.LibelleNavire ?? "",
+                        Manifeste = selectedManifeste?.Code ?? ""
+                    };
+                    items.Add(item);
+                }
+
+                if (items.Count > 0 && SelectedChassis == null)
+                {
+                    SelectedChassis = items[0];
+                }
+
+                return new TableData<ChassisItem> { TotalItems = totalRecords, Items = items };
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[VisualControlCenter] Erreur ServerData: {ex.Message}");
+        }
+
+        return new TableData<ChassisItem> { TotalItems = 0, Items = new List<ChassisItem>() };
+    }
+
+    private async Task LoadDashboardDataAsync(int idManifeste)
+    {
+        try
+        {
+            // Récupération des compteurs globaux sans transférer des millions de lignes
+            var dataResult = await BapiService.ExecuteProcedureAsync(1, "PS_DASHBOARD_ADMIN_MANIFESTE_VEHICULES", new object?[] { idManifeste, 1, 50, string.Empty });
+            if (dataResult != null && dataResult.Length > 0)
+            {
+                var first = dataResult[0];
+                totalVehicules = ToInt(first.GetValueOrDefault("TotalRecords"), dataResult.Length);
+                rampeCount = ToInt(first.GetValueOrDefault("AlertesRampe"), 0);
+                entreeCount = ToInt(first.GetValueOrDefault("BloquesEntree"), 0);
+                sortieCount = ToInt(first.GetValueOrDefault("AlertesSortie"), 0);
+
+                int totalAnomalies = rampeCount + entreeCount + sortieCount;
+                if (totalVehicules > 0)
+                {
+                    healthPercent = Math.Clamp(100 - (totalAnomalies * 100 / totalVehicules), 60, 99);
+                }
+                else
+                {
+                    healthPercent = 95;
+                }
+                healthStatusText = healthPercent >= 85 ? "FLUIDE" : (healthPercent >= 70 ? "ATTENTION" : "CRITIQUE");
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[VisualControlCenter] Erreur compteurs: {ex.Message}");
+        }
+    }
+
+    private async Task HandleFilterSelected(string filterName)
+    {
+        ActiveFilter = ActiveFilter == filterName ? string.Empty : filterName;
+        if (!string.IsNullOrEmpty(ActiveFilter))
+        {
+            Snackbar.Add($"Filtre appliqué : {ActiveFilter}", Severity.Info);
+        }
+        else
+        {
+            Snackbar.Add("Filtre réinitialisé.", Severity.Normal);
+        }
+
+        if (gridRef != null)
+        {
+            await gridRef.ReloadServerDataAsync();
+        }
     }
 
     private void OpenInspectionDrawer()
     {
-        if (SelectedChassis == null)
-        {
-            SelectedChassis = new ChassisItem
-            {
-                ChassisId = "014550208",
-                Type = "Alertes Rampe",
-                Statut = "Oui/Validé",
-                Rampe = "—",
-                Entree = "DTI",
-                Sortie = "—",
-                DerniereMaj = "20/02/2026, 13:54",
-                ActionLabel = "Valider VAQ"
-            };
-        }
         IsDrawerOpen = true;
     }
 
@@ -225,14 +366,14 @@
 
     private void HandleActionExecuted(ChassisItem item)
     {
-        Snackbar.Add($"Action '{item.ActionLabel}' exécutée pour le châssis {item.ChassisId}", Severity.Success);
+        Snackbar.Add($"Châssis {item.ChassisId} sélectionné pour inspection.", Severity.Info);
     }
 
     private void HandleAnomalyResolved()
     {
         if (SelectedChassis != null)
         {
-            Snackbar.Add($"Anomalie résolue avec succès pour le dossier {SelectedChassis.ChassisId}", Severity.Success);
+            Snackbar.Add($"Anomalie résolue avec succès pour le châssis {SelectedChassis.ChassisId}", Severity.Success);
         }
     }
 }

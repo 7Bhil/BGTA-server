@@ -1,4 +1,5 @@
 @using MudBlazor
+@implements IDisposable
 
 <MudPaper Elevation="2" Class="pa-3 mb-4 rounded-lg" Style="background: linear-gradient(90deg, #0f172a 0%, #1e293b 100%); color: white;">
     <MudGrid Class="align-center">
@@ -11,36 +12,126 @@
             </div>
         </MudItem>
 
+        <!-- Sélecteur de Manifeste (MudAutocomplete réactif) -->
+        <MudItem xs="12" md="4" Class="d-flex align-center">
+            <style>
+                .vcc-manifeste-autocomplete input {
+                    color: #ffffff !important;
+                    font-weight: 600;
+                }
+                .vcc-manifeste-autocomplete input::placeholder {
+                    color: #cbd5e1 !important;
+                    opacity: 0.85;
+                }
+                .vcc-manifeste-autocomplete .mud-input-adornment {
+                    color: #38bdf8 !important;
+                }
+            </style>
+            <MudAutocomplete T="ManifesteItem"
+                             Value="@SelectedManifeste"
+                             ValueChanged="@HandleManifesteChanged"
+                             SearchFunc="@SearchManifestes"
+                             ToStringFunc="@(m => m == null ? string.Empty : $"{m.Code} — {m.LibelleNavire}")"
+                             Placeholder="Sélectionner ou rechercher un manifeste..."
+                             AdornmentIcon="@Icons.Material.Filled.DirectionsBoat"
+                             AdornmentColor="Color.Info"
+                             ResetValueOnEmptyText="true"
+                             CoerceText="true"
+                             Dense="true"
+                             Class="w-100 vcc-manifeste-autocomplete"
+                             Style="background-color: rgba(255, 255, 255, 0.12); border-radius: 6px;" />
+        </MudItem>
+
         <!-- Dynamic Status Banner Center -->
-        <MudItem xs="12" md="6">
-            <MudPaper Elevation="0" Class="pa-2 px-4 rounded-pill d-flex flex-column align-center" Style="background-color: rgba(16, 185, 129, 0.15); border: 1px solid #10b981;">
+        <MudItem xs="12" md="3">
+            <MudPaper Elevation="0" Class="pa-2 px-3 rounded-pill d-flex flex-column align-center" Style="background-color: rgba(16, 185, 129, 0.15); border: 1px solid #10b981;">
                 <div class="d-flex align-center justify-space-between w-100 mb-1">
-                    <MudText Typo="Typo.subtitle2" Style="font-weight: 700; color: #10b981; text-transform: uppercase;">
-                        SANTÉ GLOBALE DE LA JOURNÉE : @HealthStatusText
+                    <MudText Typo="Typo.caption" Style="font-weight: 700; color: #10b981; text-transform: uppercase;">
+                        SANTÉ : @HealthStatusText
                     </MudText>
-                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled">FLUIDE (@HealthPercent%)</MudChip>
+                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled">@HealthPercent%</MudChip>
                 </div>
-                <MudProgressLinear Color="Color.Success" Value="@HealthPercent" Class="w-100 rounded-pill" Style="height: 6px;" />
+                <MudProgressLinear Color="Color.Success" Value="@HealthPercent" Class="w-100 rounded-pill" Style="height: 4px;" />
             </MudPaper>
         </MudItem>
 
-        <!-- Right System Info -->
-        <MudItem xs="12" md="3" Class="d-flex align-center justify-end">
+        <!-- Right System Info & Dynamic Clock -->
+        <MudItem xs="12" md="2" Class="d-flex align-center justify-end">
             <div class="text-right">
                 <MudText Typo="Typo.body2" Style="font-weight: 600; color: #f8fafc;">
-                    @(TotalVehicules > 0 ? $"{TotalVehicules} VÉHICULES ACTIFS" : CurrentTime)
+                    @(TotalVehicules > 0 ? $"{TotalVehicules} VÉHICULES" : CurrentTime)
                 </MudText>
-                <MudText Typo="Typo.caption" Style="color: #94a3b8;">@CurrentDate - @CurrentTime</MudText>
+                <MudText Typo="Typo.caption" Style="color: #94a3b8;">@CurrentDate — @CurrentTime</MudText>
             </div>
         </MudItem>
     </MudGrid>
 </MudPaper>
 
 @code {
+    public record ManifesteItem(int Id, string Code, string LibelleNavire, string DateManifeste);
+
     [Parameter] public string HealthStatusText { get; set; } = "FLUIDE";
     [Parameter] public int HealthPercent { get; set; } = 85;
     [Parameter] public int TotalVehicules { get; set; } = 0;
+    [Parameter] public List<ManifesteItem> AvailableManifestes { get; set; } = new();
+    [Parameter] public ManifesteItem? SelectedManifeste { get; set; }
+    [Parameter] public EventCallback<ManifesteItem> OnManifesteSelected { get; set; }
 
     private string CurrentTime { get; set; } = DateTime.Now.ToString("HH:mm:ss");
     private string CurrentDate { get; set; } = DateTime.Now.ToString("dd/MM/yyyy");
+    private CancellationTokenSource? _cts;
+
+    protected override void OnInitialized()
+    {
+        _cts = new CancellationTokenSource();
+        _ = StartClockAsync(_cts.Token);
+    }
+
+    private async Task StartClockAsync(CancellationToken token)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                CurrentTime = DateTime.Now.ToString("HH:mm:ss");
+                CurrentDate = DateTime.Now.ToString("dd/MM/yyyy");
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Arrêt normal du timer
+        }
+    }
+
+    private Task<IEnumerable<ManifesteItem>> SearchManifestes(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return Task.FromResult<IEnumerable<ManifesteItem>>(AvailableManifestes);
+        }
+
+        var results = AvailableManifestes.Where(m =>
+            m.Code.Contains(value, StringComparison.OrdinalIgnoreCase) ||
+            m.LibelleNavire.Contains(value, StringComparison.OrdinalIgnoreCase));
+
+        return Task.FromResult(results);
+    }
+
+    private async Task HandleManifesteChanged(ManifesteItem item)
+    {
+        SelectedManifeste = item;
+        if (OnManifesteSelected.HasDelegate)
+        {
+            await OnManifesteSelected.InvokeAsync(item);
+        }
+    }
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
 }
+
