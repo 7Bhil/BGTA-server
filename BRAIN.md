@@ -53,5 +53,9 @@
   - `BGTA-server` : commit `f24a152` (*feat: ajout de la pagination de la grille d exceptions et harmonisation de la configuration serveur distant*).
   - `BGTA-test` : commit `b9284b7` (*fix: alignement des references de projets relatifs sur BGTA-server et BGTA-shared*).
   - Poussée Git réussie et visible en direct sur GitHub sur la branche `developp`.
+- 2026-10-09 : Déploiement des améliorations du Visual Control Center sur GitHub (`origin/developp`) :
+  - Dépôt `BGTA-server` : commit `dfe30ed` (*feat: pagination serveur, tri des colonnes et optimisation ergonomique du visual control center*).
+  - Poussée Git réussie et copie de travail propre.
+
 
 
